@@ -13,7 +13,8 @@ case "$mode" in
     spec=(--spec-type draft-mtp --spec-draft-n-max 8 -ctk q4_0 -ctv q4_0 -ub 256 -c 65536)
     ;;
   long)
-    spec=(--spec-type draft-mtp --spec-draft-n-max 3 -ctk q4_0 -ctv q4_0 -ub 256 -c 256000 -ctkd q4_0 -ctvd q4_0 -ncmoe 1 -t 16)
+    export LLAMA_KV_CPU_LAYERS="${LLAMA_KV_CPU_LAYERS:-3,7,11}"
+    spec=(--spec-type draft-mtp --spec-draft-n-max 3 -ctk q4_0 -ctv q4_0 -ub 256 -c 256000 -ctkd q4_0 -ctvd q4_0 -t 16)
     ;;
   *)
     echo "usage: $0 [chat|document|long]" >&2

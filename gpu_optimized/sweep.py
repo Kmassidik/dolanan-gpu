@@ -63,14 +63,18 @@ def run_variant(
     result: dict[str, Any] = {
         "name": name,
         "args": variant.get("args", []),
+        "env": variant.get("env", {}),
         "samples": [],
         "error": None,
     }
     log_path = log_dir / f"{name}.server.log"
+    environment = os.environ.copy()
+    environment.update(variant.get("env", {}))
     with log_path.open("w") as log:
         process = subprocess.Popen(
             server_command(plan, variant),
             cwd=plan["workdir"],
+            env=environment,
             stdout=log,
             stderr=subprocess.STDOUT,
             start_new_session=True,

@@ -18,8 +18,10 @@ On the GPU box, start the best measured configuration for the workload:
 export LLAMA_API_KEY='your-key'
 ./scripts/serve.sh chat      # 64K, MTP3/Q4: general use
 ./scripts/serve.sh document  # 64K, MTP8/Q4: predictable documents
-./scripts/serve.sh long      # 250K, MTP3/Q4 + one RAM-backed MoE layer
+./scripts/serve.sh long      # 250K, MTP3/Q4 + selective KV tier
 ```
+
+The long mode keeps KV layers `3,7,11` in host RAM and the rest in VRAM. It measured about 100 chat / 112 document tok/s and passed a 73K-token retrieval test.
 
 The launcher replaces the running `llama-server`. It reads the API key from the environment and does not store it in the repository. See `RESULTS.md`, `CONTEXT.md`, and `PHASES.md` for measurements.
 
@@ -46,17 +48,24 @@ Compare two configurations measured with identical workloads:
 python3 -m gpu_optimized compare results/stock.json results/candidate.json
 ```
 
+Long-context retrieval validation:
+
+```bash
+python3 -m gpu_optimized.context_check --target-tokens 70000
+```
+
 Install the commands if desired:
 
 ```bash
 python3 -m pip install -e .
 gpu-optimized bench --help
 gpu-optimized-sweep --help
+gpu-context-check --help
 ```
 
 ## Configuration sweeps
 
-Run this on the server itself. A sweep starts each configuration in isolation, waits for readiness, benchmarks both workloads, records failures, and stops the process before trying the next one.
+Run this on the server itself. A sweep starts each configuration in isolation, waits for readiness, benchmarks both workloads, records failures, and stops the process before trying the next one. A variant may set extra environment variables with its `env` object.
 
 ```bash
 python3 -m gpu_optimized.sweep \
@@ -74,6 +83,7 @@ python3 -m gpu_optimized.sweep \
 - Reported summary: median across runs.
 - Acceptance: total accepted draft tokens divided by total proposed draft tokens.
 - Native phase fields: `draft_ms`, `target_ms`, `catchup_ms`, and `accept_ms` when the instrumented server provides them.
+- Long-context check: hidden-code retrieval with a prompt greater than 65,536 tokens.
 - Raw samples are saved so comparisons do not depend on rounded console output.
 
 Prompt processing can use server cache on later runs. Decode rate is therefore the primary comparison metric; prefill and wall-clock rate are retained in the raw samples.

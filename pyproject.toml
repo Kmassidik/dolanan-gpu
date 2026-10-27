@@ -14,6 +14,7 @@ dependencies = []
 [project.scripts]
 gpu-optimized = "gpu_optimized.cli:main"
 gpu-optimized-sweep = "gpu_optimized.sweep:main"
+gpu-context-check = "gpu_optimized.context_check:main"
 
 [tool.setuptools.packages.find]
 include = ["gpu_optimized*"]

@@ -1,0 +1,59 @@
+--- a/src/llama-kv-cache.cpp
++++ b/src/llama-kv-cache.cpp
+@@ -4,6 +4,7 @@
+ #include "llama-io.h"
+ #include "llama-model.h"
+ #include "llama-context.h"
++#include "kv_tier.h"
+ 
+ #include <algorithm>
+ #include <cassert>
+@@ -213,11 +214,13 @@
+ 
+         ggml_backend_buffer_type_t buft = ggml_backend_cpu_buffer_type();
+ 
+-        if (offload) {
++        if (offload && !kv_tier_layer_on_cpu(il)) {
+             auto * dev = model.dev_layer(il);
+             buft = ggml_backend_dev_buffer_type(dev);
+ 
+             dev_name = ggml_backend_dev_name(dev);
++        } else if (offload) {
++            dev_name = "CPU (KV tier)";
+         }
+ 
+         LLAMA_LOG_DEBUG("%s: layer %3d: dev = %s\n", __func__, il, dev_name);
+--- a/src/kv_tier.h
++++ b/src/kv_tier.h
+@@ -0,0 +1,31 @@
++#pragma once
++
++#include <cstdint>
++#include <cstdlib>
++
++// Select full-attention KV layers to keep in host RAM.
++// Example: LLAMA_KV_CPU_LAYERS=3,7,11
++inline bool kv_tier_layer_on_cpu(uint32_t layer) {
++    const char * value = std::getenv("LLAMA_KV_CPU_LAYERS");
++    if (value == nullptr) {
++        return false;
++    }
++
++    const char * cursor = value;
++    while (*cursor != '\0') {
++        char * end = nullptr;
++        const unsigned long parsed = std::strtoul(cursor, &end, 10);
++        if (end != cursor && parsed == layer) {
++            return true;
++        }
++        if (end == cursor) {
++            ++cursor;
++        } else {
++            cursor = end;
++        }
++        if (*cursor == ',') {
++            ++cursor;
++        }
++    }
++    return false;
++}
