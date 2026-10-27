@@ -1,0 +1,25 @@
+{
+  "workdir": "/root/Desktop/selfhostllm",
+  "binary": "engines/llamacpp/build/bin/llama-server",
+  "model": "models/gguf/qwen36-35b-heretic/heretic-Q3_K_M.gguf",
+  "mmproj": "models/gguf/qwen36-35b-heretic/mmproj-BF16.gguf",
+  "port": 8081,
+  "startup_timeout": 180,
+  "runs": 2,
+  "base_args": [
+    "-ngl", "99", "--split-mode", "layer", "-ub", "256",
+    "-fa", "on", "-c", "65536", "--parallel", "1", "--cache-reuse", "256",
+    "--no-mmproj-offload", "--jinja",
+    "--temp", "1.0", "--top-p", "0.95", "--top-k", "20",
+    "-a", "heretic-qwen36-35b"
+  ],
+  "variants": [
+    {"name": "static2-q4kv", "args": ["--spec-type", "draft-mtp", "--spec-draft-n-max", "2", "-ctk", "q4_0", "-ctv", "q4_0"]},
+    {"name": "static4-q4kv", "args": ["--spec-type", "draft-mtp", "--spec-draft-n-max", "4", "-ctk", "q4_0", "-ctv", "q4_0"]},
+    {"name": "static5-q4kv", "args": ["--spec-type", "draft-mtp", "--spec-draft-n-max", "5", "-ctk", "q4_0", "-ctv", "q4_0"]},
+    {"name": "static6-q4kv", "args": ["--spec-type", "draft-mtp", "--spec-draft-n-max", "6", "-ctk", "q4_0", "-ctv", "q4_0"]},
+    {"name": "static4-f16kv", "args": ["--spec-type", "draft-mtp", "--spec-draft-n-max", "4", "-ctk", "f16", "-ctv", "f16"]},
+    {"name": "static5-f16kv", "args": ["--spec-type", "draft-mtp", "--spec-draft-n-max", "5", "-ctk", "f16", "-ctv", "f16"]},
+    {"name": "static4-f16kv-draftq4", "args": ["--spec-type", "draft-mtp", "--spec-draft-n-max", "4", "-ctk", "f16", "-ctv", "f16", "-ctkd", "q4_0", "-ctvd", "q4_0"]}
+  ]
+}

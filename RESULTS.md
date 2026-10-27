@@ -46,3 +46,19 @@ Three runs per configuration. The final implementation starts at depth 8, falls 
 | Adaptive v3, `ub512` | 94.0 | 114.3 |
 
 The final version works but does not beat the best static settings. It is retained as patches for evaluation history and is not used in production.
+
+## Kernel boundary and KV cache
+
+Two runs per configuration with `ub256`. Q3_K MoE changes kernels between four and five drafted tokens because the verification batch crosses six tokens.
+
+| Configuration | Chat | Document |
+|---|---:|---:|
+| MTP2, Q4 target KV | 99.6 | 110.3 |
+| MTP4, Q4 target KV | 93.1 | 108.5 |
+| MTP5, Q4 target KV | 89.1 | 125.4 |
+| MTP6, Q4 target KV | 81.2 | 128.9 |
+| MTP4, F16 target KV | **102.4** | 101.9 |
+| MTP5, F16 target KV | 93.8 | 108.0 |
+| MTP4, F16 target KV + Q4 draft KV | 99.4 | 99.7 |
+
+F16 target KV produced a new chat record with MTP4 but reduced document throughput. Quantizing draft KV did not help. The 4→5 transition is visible but does not create a better overall configuration.
