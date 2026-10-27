@@ -5,3 +5,5 @@ build/
 dist/
 *.egg-info/
 results/
+plans/*.results.json
+plans/*.server.log
