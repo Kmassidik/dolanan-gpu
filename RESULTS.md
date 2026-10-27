@@ -2,6 +2,16 @@
 
 Rates are llama.cpp decode tokens per second on three RTX 3060 Ti cards with `heretic-qwen36-35b` Q3_K_M, 65,536-token context, and one request. Raw samples and server logs remain local under ignored `results/` and `plans/*.results.json` paths.
 
+## Final production choices
+
+| Mode | Configuration | Chat | Document |
+|---|---|---:|---:|
+| General/chat | MTP3, Q4 target KV, `ub256` | **106.3** | **117.1** |
+| Document-optimized | MTP8, Q4 target KV, `ub256` | 80.6 | **146.1** |
+| Baseline | No speculation | 80.7 | 81.2 |
+
+General mode is approximately 32% faster for chat and 44% faster for documents than baseline. Document mode is approximately 80% faster for document reproduction but is not recommended for open-ended chat. `scripts/serve.sh` launches these configurations.
+
 ## Draft depth, `ub256`
 
 Two runs per configuration.
@@ -83,7 +93,7 @@ Three runs per configuration with `ub256` unless noted.
 | Configuration | Chat | Document |
 |---|---:|---:|
 | MTP2, F16 reference | 103.6 | 110.8 |
-| MTP3, F16 | **106.3** | 107.9 |
+| MTP3, F16 | 106.3 | 107.9 |
 | MTP2, Q8 | 101.9 | 109.1 |
 | MTP4, F16, `p_min=0.50` | 84.7 | 111.9 |
 | MTP8, Q4, `p_min=0.50` | 81.2 | 137.0 |
@@ -91,4 +101,18 @@ Three runs per configuration with `ub256` unless noted.
 | MTP8, Q4, `p_min=0.50`, `ub512` | 81.6 | 140.2 |
 | MTP8, F16, `p_min=0.50`, `ub512` | 79.9 | 144.0 |
 
-Confidence gating did not produce a better general configuration. MTP3/F16 became the new chat leader. Best document result remains MTP8/Q4 at 146.1 tok/s.
+Confidence gating did not produce a better general configuration.
+
+## MTP3 confirmation
+
+Five runs per configuration.
+
+| Configuration | Chat | Document |
+|---|---:|---:|
+| MTP3, F16, `ub128` | 106.0 | 111.2 |
+| MTP3, F16, `ub256` | 106.4 | 107.8 |
+| MTP3, F16, `ub512` | 105.7 | 108.8 |
+| MTP3, Q4, `ub256` | **106.3** | **117.1** |
+| MTP3, Q8, `ub256` | 101.2 | 106.2 |
+
+MTP3/Q4 matches the best chat result while retaining stronger document throughput, so it is the general production choice.

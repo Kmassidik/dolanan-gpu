@@ -1,6 +1,6 @@
 # dolanan-gpu
 
-`gpu-optimized`: evidence-first benchmarks for llama.cpp GPU inference. Built for a remote three-RTX-3060 Ti server, usable with any OpenAI-compatible llama.cpp endpoint.
+`gpu-optimized`: evidence-first benchmarks and measured serving configurations for llama.cpp GPU inference. Built for a three-RTX-3060 Ti server, with benchmark support for any OpenAI-compatible llama.cpp endpoint.
 
 The tool measures **decode throughput**, **prefill throughput**, and **draft acceptance**. It does not claim that a module is active or an optimization works merely because a flag is present.
 
@@ -10,12 +10,23 @@ The tool measures **decode throughput**, **prefill throughput**, and **draft acc
 - No Python dependencies
 - `ssh` on PATH when using `--ssh`
 
-## Run
+## Production launcher
+
+On the GPU box, start the best measured configuration for the workload:
+
+```bash
+export LLAMA_API_KEY='your-key'
+./scripts/serve.sh chat      # MTP3, Q4 target KV: general use
+./scripts/serve.sh document  # MTP8, Q4 target KV: predictable documents
+```
+
+The launcher replaces the running `llama-server`. It reads the API key from the environment and does not store it in the repository. See `RESULTS.md` for measurements and alternatives.
+
+## Benchmark
 
 Direct server:
 
 ```bash
-export LLAMA_API_KEY='your-key'
 python3 -m gpu_optimized bench --url http://127.0.0.1:8081 --runs 3
 ```
 
@@ -28,23 +39,18 @@ python3 -m gpu_optimized bench \
   --output results/native-mtp.json
 ```
 
-Chat only:
-
-```bash
-python3 -m gpu_optimized bench --workload chat --runs 5
-```
-
 Compare two configurations measured with identical workloads:
 
 ```bash
 python3 -m gpu_optimized compare results/stock.json results/candidate.json
 ```
 
-Install the `gpu-optimized` command if desired:
+Install the commands if desired:
 
 ```bash
 python3 -m pip install -e .
 gpu-optimized bench --help
+gpu-optimized-sweep --help
 ```
 
 ## Configuration sweeps
@@ -72,7 +78,7 @@ Prompt processing can use server cache on later runs. Decode rate is therefore t
 
 ## Scope
 
-This is the measurement and experiment-control layer for optimization work. It benchmarks an existing server and can run explicit configuration sweep plans. It does not pretend a new language automatically improves inference; native changes still require profiling and before/after measurements.
+This repository contains the measurement and experiment-control layer, measured production launchers, and native llama.cpp patches kept for evaluation. Native changes require profiling and before/after measurements; a new language or flag is not itself an optimization.
 
 ## License
 
