@@ -1,96 +1,111 @@
 # dolanan-gpu
 
-`gpu-optimized`: evidence-first benchmarks and measured serving configurations for llama.cpp GPU inference. Built for a three-RTX-3060 Ti server, with benchmark support for any OpenAI-compatible llama.cpp endpoint.
+**Measured inference optimization for three consumer GPUs.** Built and benchmarked on 3× RTX 3060 Ti (8GB each) with 125GB host RAM, serving `heretic-qwen36-35b` Q3_K_M through a patched llama.cpp.
 
-The tool measures **decode throughput**, **prefill throughput**, **draft acceptance**, and native inference phases. It does not claim that a module is active or an optimization works merely because a flag is present.
+No synthetic claims: every number below comes from the included benchmark harness on this machine.
 
-## Requirements
+![Measured decode throughput](assets/performance.svg)
 
-- Python 3.10+
-- No Python dependencies
-- `ssh` on PATH when using `--ssh`
+## Results
 
-## Production launcher
+| Mode | Context | Chat tok/s | Document tok/s |
+|---|---:|---:|---:|
+| Original baseline | 64K | 80.7 | 81.2 |
+| **General** — MTP3/Q4 | 64K | **105.8** | **116.4** |
+| **Document** — MTP8/Q4 | 64K | 80.6 | **146.2** |
+| **Long** — MTP3/Q4 + selective KV tier | **250K** | **100.3** | **111.4** |
 
-On the GPU box, start the best measured configuration for the workload:
+Long mode provides four times the context of the baseline while remaining about 30% faster for chat. It passed a hidden-code retrieval test with **73,378 prompt tokens**.
+
+## What was optimized
+
+- Native MTP draft depth tuned per workload: 3 for general use, 8 for predictable documents.
+- Q4 target and draft KV cache with FlashAttention.
+- Background sampling beats CPU sampling on this box.
+- Selective KV tier: attention-layer KV `3,7,11` resides in host RAM while the rest stays in VRAM. This made 250K context possible without running a whole MoE layer on the CPU.
+- Native C++ phase instrumentation measures draft, target verification, MTP catch-up, and acceptance cost.
+- Measured correction: target verification is ~67% of generation time; MTP catch-up is only ~3.6%, so earlier catch-up optimization was not the right target.
+
+See [`RESULTS.md`](RESULTS.md), [`CONTEXT.md`](CONTEXT.md), and [`PHASES.md`](PHASES.md).
+
+## Quick start
 
 ```bash
+git clone https://github.com/Kmassidik/dolanan-gpu.git
+cd dolanan-gpu
 export LLAMA_API_KEY='your-key'
-./scripts/serve.sh chat      # 64K, MTP3/Q4: general use
-./scripts/serve.sh document  # 64K, MTP8/Q4: predictable documents
-./scripts/serve.sh long      # 250K, MTP3/Q4 + selective KV tier
+
+./scripts/serve.sh chat      # 64K general
+./scripts/serve.sh document  # 64K document-optimized
+./scripts/serve.sh long      # 250K selective KV tier
 ```
 
-The long mode keeps KV layers `3,7,11` in host RAM and the rest in VRAM. It measured about 100 chat / 112 document tok/s and passed a 73K-token retrieval test.
+The launcher expects the llama.cpp build and GGUF model described in [`CONTEXT.md`](CONTEXT.md). It replaces any running `llama-server`.
 
-The launcher replaces the running `llama-server`. It reads the API key from the environment and does not store it in the repository. See `RESULTS.md`, `CONTEXT.md`, and `PHASES.md` for measurements.
-
-## Benchmark
-
-Direct server:
+## Benchmark a running server
 
 ```bash
 python3 -m gpu_optimized bench --url http://127.0.0.1:8081 --runs 3
 ```
 
-Remote server bound to localhost on the GPU box:
+Through SSH to a remote localhost-only server:
 
 ```bash
-python3 -m gpu_optimized bench \
-  --ssh root@100.122.45.32 \
-  --runs 3 \
-  --output results/native-mtp.json
+python3 -m gpu_optimized bench --ssh root@100.122.45.32 --runs 3
 ```
 
-Compare two configurations measured with identical workloads:
+Compare two saved configurations:
 
 ```bash
-python3 -m gpu_optimized compare results/stock.json results/candidate.json
+python3 -m gpu_optimized compare results/before.json results/after.json
 ```
 
-Long-context retrieval validation:
+Validate real long-context retrieval:
 
 ```bash
 python3 -m gpu_optimized.context_check --target-tokens 70000
 ```
 
-Install the commands if desired:
+## Reproduce configuration sweeps
+
+A sweep starts each configuration in isolation, benchmarks it, records failures, and stops the server before the next variant. Variants can set extra environment variables with an `env` object.
 
 ```bash
-python3 -m pip install -e .
-gpu-optimized bench --help
-gpu-optimized-sweep --help
-gpu-context-check --help
+python3 -m gpu_optimized.sweep --plan plans/kv-tier.json --replace-existing
 ```
 
-## Configuration sweeps
+API keys come from `LLAMA_API_KEY`; they are never written to result JSON. Generated samples and server logs are ignored by git.
 
-Run this on the server itself. A sweep starts each configuration in isolation, waits for readiness, benchmarks both workloads, records failures, and stops the process before trying the next one. A variant may set extra environment variables with its `env` object.
+## Repository layout
 
-```bash
-python3 -m gpu_optimized.sweep \
-  --plan plans/mtp-depth.json \
-  --replace-existing
+```text
+assets/performance.svg      measured performance chart
+gpu_optimized/              benchmark, sweep, comparison, long-context CLI
+native/                     small native helpers shipped with patches
+patches/                    llama.cpp patches and apply instructions
+plans/                      reproducible sweep definitions
+scripts/serve.sh            measured production launchers
+RESULTS.md                  speculative and execution results
+CONTEXT.md                  250K context and memory-tier results
+PHASES.md                   native phase breakdown
 ```
 
-`--replace-existing` deliberately kills any running `llama-server` first. Omit it when an existing service must remain untouched. Results and per-configuration server logs are written beside the plan's result file. API keys come from `LLAMA_API_KEY` and are never saved in result JSON.
+## Native patches
+
+`0004-native-phase-timings.patch` adds per-request timing fields: `draft_ms`, `target_ms`, `catchup_ms`, `accept_ms`.
+
+`0005-selective-kv-tier.patch` adds `LLAMA_KV_CPU_LAYERS=3,7,11` support for placing selected attention-layer KV caches in host RAM.
+
+Earlier adaptive-MTP patches are retained as evaluation history but are not used in production. See [`patches/README.md`](patches/README.md).
 
 ## Method
 
-- `chat`: 128-token open-ended explanation.
-- `document`: 256-token reproduction of a repetitive document.
-- Reported decode rate: llama.cpp `timings.predicted_per_second`.
-- Reported summary: median across runs.
-- Acceptance: total accepted draft tokens divided by total proposed draft tokens.
-- Native phase fields: `draft_ms`, `target_ms`, `catchup_ms`, and `accept_ms` when the instrumented server provides them.
-- Long-context check: hidden-code retrieval with a prompt greater than 65,536 tokens.
-- Raw samples are saved so comparisons do not depend on rounded console output.
-
-Prompt processing can use server cache on later runs. Decode rate is therefore the primary comparison metric; prefill and wall-clock rate are retained in the raw samples.
-
-## Scope
-
-This repository contains the measurement and experiment-control layer, measured production launchers, and native llama.cpp patches kept for evaluation. Native changes require profiling and before/after measurements; a new language or flag is not itself an optimization.
+- Chat workload: 128-token open-ended explanation.
+- Document workload: 256-token reproduction of a repetitive document.
+- Decode rate comes from llama.cpp `timings.predicted_per_second`.
+- Runs are median-aggregated; raw samples remain available.
+- Prompt caching may reduce prefill time on repeated runs, so decode throughput is the primary comparison metric.
+- Long-context correctness is tested with a hidden code that must be retrieved from beyond 64K tokens.
 
 ## License
 
