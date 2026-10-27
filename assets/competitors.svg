@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 500" width="920" height="500" role="img" aria-labelledby="title desc">
+  <title id="title">Our patched stack versus upstream llama.cpp</title>
+  <desc id="desc">Grouped bars comparing chat and document decode throughput for the pinned patched llama.cpp and current upstream llama.cpp at 64K and 250K context.</desc>
+  <style>
+    text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; fill: #1f2937; }
+    .muted { fill: #6b7280; }
+    .grid { stroke: #e5e7eb; stroke-width: 1; }
+    .axis { stroke: #9ca3af; stroke-width: 1.2; }
+    .chat { fill: #3b82f6; }
+    .doc { fill: #10b981; }
+    .bg { fill: #ffffff; }
+    .value { font-size: 12px; font-weight: 700; }
+    .label { font-size: 12px; font-weight: 600; }
+    .small { font-size: 11px; }
+    @media (prefers-color-scheme: dark) {
+      text { fill: #e5e7eb; }
+      .muted { fill: #9ca3af; }
+      .grid { stroke: #374151; }
+      .axis { stroke: #6b7280; }
+      .chat { fill: #60a5fa; }
+      .doc { fill: #34d399; }
+      .bg { fill: #0b1220; }
+    }
+  </style>
+
+  <rect class="bg" x="0" y="0" width="920" height="500" rx="8"/>
+  <text x="36" y="32" font-size="20" font-weight="700">Same model, different engine</text>
+  <text x="36" y="54" class="muted small">Heretic Qwen36-35B Q3_K_M · 3× RTX 3060 Ti · one request · median tok/s</text>
+
+  <g class="grid">
+    <line x1="72" y1="370" x2="884" y2="370"/>
+    <line x1="72" y1="295" x2="884" y2="295"/>
+    <line x1="72" y1="220" x2="884" y2="220"/>
+    <line x1="72" y1="145" x2="884" y2="145"/>
+    <line x1="72" y1="70" x2="884" y2="70"/>
+  </g>
+  <g class="muted small" text-anchor="end">
+    <text x="60" y="374">0</text>
+    <text x="60" y="299">40</text>
+    <text x="60" y="224">80</text>
+    <text x="60" y="149">120</text>
+    <text x="60" y="74">160</text>
+  </g>
+  <line x1="72" y1="70" x2="72" y2="370" class="axis"/>
+
+  <!-- Our patched 64K -->
+  <rect x="104" y="171.6" width="50" height="198.4" rx="4" class="chat"/>
+  <rect x="162" y="151.8" width="50" height="218.2" rx="4" class="doc"/>
+  <text x="129" y="161" text-anchor="middle" class="value">105.8</text>
+  <text x="187" y="141" text-anchor="middle" class="value">116.4</text>
+
+  <!-- Upstream 64K -->
+  <rect x="298" y="144.6" width="50" height="225.4" rx="4" class="chat"/>
+  <rect x="356" y="102.4" width="50" height="267.6" rx="4" class="doc"/>
+  <text x="323" y="134" text-anchor="middle" class="value">120.2</text>
+  <text x="381" y="92" text-anchor="middle" class="value">142.7</text>
+
+  <!-- Our patched 250K -->
+  <rect x="492" y="181.9" width="50" height="188.1" rx="4" class="chat"/>
+  <rect x="550" y="161.1" width="50" height="208.9" rx="4" class="doc"/>
+  <text x="517" y="171" text-anchor="middle" class="value">100.3</text>
+  <text x="575" y="151" text-anchor="middle" class="value">111.4</text>
+
+  <!-- Upstream + KV tier 250K -->
+  <rect x="686" y="156.6" width="50" height="213.4" rx="4" class="chat"/>
+  <rect x="744" y="121" width="50" height="249" rx="4" class="doc"/>
+  <text x="711" y="146" text-anchor="middle" class="value">113.8</text>
+  <text x="769" y="111" text-anchor="middle" class="value">132.8</text>
+
+  <g class="label" text-anchor="middle">
+    <text x="158" y="394">Our patched</text>
+    <text x="158" y="410" class="muted small">llama.cpp · 64K</text>
+
+    <text x="352" y="394">Upstream</text>
+    <text x="352" y="410" class="muted small">d930fe3 · 64K</text>
+
+    <text x="546" y="394">Our patched</text>
+    <text x="546" y="410" class="muted small">+ KV tier · 250K</text>
+
+    <text x="740" y="394">Upstream</text>
+    <text x="740" y="410" class="muted small">+ KV tier · 250K</text>
+  </g>
+
+  <g transform="translate(72,448)">
+    <rect x="0" y="-11" width="14" height="14" rx="3" class="chat"/>
+    <text x="22" y="0" class="small">Chat decode</text>
+    <rect x="138" y="-11" width="14" height="14" rx="3" class="doc"/>
+    <text x="160" y="0" class="small">Document decode</text>
+    <text x="680" y="0" class="muted small" text-anchor="end">same GGUF, same prompts</text>
+  </g>
+</svg>

@@ -1,0 +1,24 @@
+{
+  "workdir": "/root/Desktop/selfhostllm",
+  "binary": "/root/Desktop/competitors/llama-upstream/build/bin/llama-server",
+  "model": "models/gguf/qwen36-35b-heretic/heretic-Q3_K_M.gguf",
+  "mmproj": "models/gguf/qwen36-35b-heretic/mmproj-BF16.gguf",
+  "port": 8081,
+  "startup_timeout": 240,
+  "runs": 3,
+  "base_args": [
+    "-ngl", "99", "--split-mode", "layer", "-ub", "256",
+    "-fa", "on", "-ctk", "q4_0", "-ctv", "q4_0",
+    "-ctkd", "q4_0", "-ctvd", "q4_0", "-c", "65536", "-t", "16",
+    "--parallel", "1", "--cache-reuse", "256",
+    "--no-mmproj-offload", "--jinja",
+    "--temp", "1.0", "--top-p", "0.95", "--top-k", "20",
+    "-a", "heretic-qwen36-35b"
+  ],
+  "variants": [
+    {"name": "upstream-no-spec", "args": []},
+    {"name": "upstream-mtp2", "args": ["--spec-type", "draft-mtp", "--spec-draft-n-max", "2"]},
+    {"name": "upstream-mtp3", "args": ["--spec-type", "draft-mtp", "--spec-draft-n-max", "3"]},
+    {"name": "upstream-mtp4", "args": ["--spec-type", "draft-mtp", "--spec-draft-n-max", "4"]}
+  ]
+}

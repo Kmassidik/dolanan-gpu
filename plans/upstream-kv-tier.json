@@ -1,0 +1,23 @@
+{
+  "workdir": "/root/Desktop/selfhostllm",
+  "binary": "/root/Desktop/competitors/llama-upstream/build/bin/llama-server",
+  "model": "models/gguf/qwen36-35b-heretic/heretic-Q3_K_M.gguf",
+  "mmproj": "models/gguf/qwen36-35b-heretic/mmproj-BF16.gguf",
+  "port": 8081,
+  "startup_timeout": 240,
+  "runs": 3,
+  "base_args": [
+    "--spec-type", "draft-mtp", "--spec-draft-n-max", "3",
+    "-ngl", "99", "--split-mode", "layer", "-ub", "256",
+    "-fa", "on", "-ctk", "q4_0", "-ctv", "q4_0",
+    "-ctkd", "q4_0", "-ctvd", "q4_0", "-c", "256000", "-t", "16",
+    "--parallel", "1", "--cache-reuse", "256",
+    "--no-mmproj-offload", "--jinja",
+    "--temp", "1.0", "--top-p", "0.95", "--top-k", "20",
+    "-a", "heretic-qwen36-35b"
+  ],
+  "variants": [
+    {"name": "upstream-250k-tier2", "args": [], "env": {"LLAMA_KV_CPU_LAYERS": "3,7"}},
+    {"name": "upstream-250k-tier3", "args": [], "env": {"LLAMA_KV_CPU_LAYERS": "3,7,11"}}
+  ]
+}

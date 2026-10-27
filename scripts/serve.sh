@@ -5,6 +5,8 @@ mode="${1:-chat}"
 root="/root/Desktop/selfhostllm"
 cd "$root"
 
+binary="engines/llamacpp/build/bin/llama-server"
+
 case "$mode" in
   chat)
     spec=(--spec-type draft-mtp --spec-draft-n-max 3 -ctk q4_0 -ctv q4_0 -ub 256 -c 65536)
@@ -16,8 +18,13 @@ case "$mode" in
     export LLAMA_KV_CPU_LAYERS="${LLAMA_KV_CPU_LAYERS:-3,7,11}"
     spec=(--spec-type draft-mtp --spec-draft-n-max 3 -ctk q4_0 -ctv q4_0 -ub 256 -c 256000 -ctkd q4_0 -ctvd q4_0 -t 16)
     ;;
+  upstream-long)
+    binary="/root/Desktop/competitors/llama-upstream/build/bin/llama-server"
+    export LLAMA_KV_CPU_LAYERS="${LLAMA_KV_CPU_LAYERS:-3,7}"
+    spec=(--spec-type draft-mtp --spec-draft-n-max 3 -ctk q4_0 -ctv q4_0 -ub 256 -c 256000 -ctkd q4_0 -ctvd q4_0 -t 16)
+    ;;
   *)
-    echo "usage: $0 [chat|document|long]" >&2
+    echo "usage: $0 [chat|document|long|upstream-long]" >&2
     exit 2
     ;;
 esac
@@ -25,7 +32,7 @@ esac
 : "${LLAMA_API_KEY:?set LLAMA_API_KEY before starting the server}"
 pkill -9 llama-server 2>/dev/null || true
 
-exec engines/llamacpp/build/bin/llama-server \
+exec "$binary" \
   -m models/gguf/qwen36-35b-heretic/heretic-Q3_K_M.gguf \
   --mmproj models/gguf/qwen36-35b-heretic/mmproj-BF16.gguf \
   "${spec[@]}" \
