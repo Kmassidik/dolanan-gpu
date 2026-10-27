@@ -118,6 +118,12 @@ Earlier adaptive-MTP patches are retained as evaluation history but are not used
 - Prompt caching may reduce prefill time on repeated runs, so decode throughput is the primary comparison metric.
 - Long-context correctness is tested with a hidden code that must be retrieved from beyond 64K tokens.
 
+## Forking and reuse
+
+This project is MIT licensed. You may fork it, modify it, redistribute it, publish derivative engines, or use it commercially, provided the copyright and permission notice remain with substantial copies of the software. There is no warranty.
+
+llama.cpp itself remains under its own upstream license. Patches in this repository apply to upstream code and do not change upstream licensing. See [`NOTICE.md`](NOTICE.md).
+
 ## License
 
 MIT
