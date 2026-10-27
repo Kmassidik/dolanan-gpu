@@ -66,7 +66,7 @@ Three runs per configuration.
 | Configuration | Chat | Document |
 |---|---:|---:|
 | MTP2, F16 KV, `ub128` | 104.1 | 107.8 |
-| MTP2, F16 KV, `ub256` | **104.3** | 111.6 |
+| MTP2, F16 KV, `ub256` | 104.3 | 111.6 |
 | MTP2, F16 target + Q4 draft KV | 102.7 | 107.0 |
 | MTP4, F16 KV, `ub128` | 104.2 | 109.6 |
 | MTP8, F16 KV, `ub256` | 74.3 | 118.8 |
@@ -74,4 +74,21 @@ Three runs per configuration.
 | MTP2, Q4 KV, tensor split 15/15/12 | 100.5 | 113.4 |
 | MTP4, F16 KV, tensor split 15/15/12 | 103.5 | 109.7 |
 
-The pipeline rebalance did not help. Current best static configurations are MTP2/F16/`ub256` for chat and MTP8/Q4/`ub256` for document reproduction. Against the 80.7/81.2 baseline, these are approximately 29% and 80% faster respectively.
+The pipeline rebalance did not help.
+
+## Confidence gating and Q8 KV
+
+Three runs per configuration with `ub256` unless noted.
+
+| Configuration | Chat | Document |
+|---|---:|---:|
+| MTP2, F16 reference | 103.6 | 110.8 |
+| MTP3, F16 | **106.3** | 107.9 |
+| MTP2, Q8 | 101.9 | 109.1 |
+| MTP4, F16, `p_min=0.50` | 84.7 | 111.9 |
+| MTP8, Q4, `p_min=0.50` | 81.2 | 137.0 |
+| MTP8, Q4, `p_min=0.75` | 84.2 | 88.6 |
+| MTP8, Q4, `p_min=0.50`, `ub512` | 81.6 | 140.2 |
+| MTP8, F16, `p_min=0.50`, `ub512` | 79.9 | 144.0 |
+
+Confidence gating did not produce a better general configuration. MTP3/F16 became the new chat leader. Best document result remains MTP8/Q4 at 146.1 tok/s.
