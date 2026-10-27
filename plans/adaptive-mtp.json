@@ -1,0 +1,22 @@
+{
+  "workdir": "/root/Desktop/selfhostllm",
+  "binary": "engines/llamacpp/build/bin/llama-server",
+  "model": "models/gguf/qwen36-35b-heretic/heretic-Q3_K_M.gguf",
+  "mmproj": "models/gguf/qwen36-35b-heretic/mmproj-BF16.gguf",
+  "port": 8081,
+  "startup_timeout": 180,
+  "runs": 3,
+  "base_args": [
+    "-ngl", "99", "--split-mode", "layer",
+    "-fa", "on", "-ctk", "q4_0", "-ctv", "q4_0",
+    "-c", "65536", "--parallel", "1", "--cache-reuse", "256",
+    "--no-mmproj-offload", "--jinja",
+    "--temp", "1.0", "--top-p", "0.95", "--top-k", "20",
+    "-a", "heretic-qwen36-35b"
+  ],
+  "variants": [
+    {"name": "adaptive8-ub128", "args": ["--spec-type", "draft-mtp", "--spec-draft-n-max", "8", "-ub", "128"]},
+    {"name": "adaptive8-ub256", "args": ["--spec-type", "draft-mtp", "--spec-draft-n-max", "8", "-ub", "256"]},
+    {"name": "adaptive8-ub512", "args": ["--spec-type", "draft-mtp", "--spec-draft-n-max", "8", "-ub", "512"]}
+  ]
+}

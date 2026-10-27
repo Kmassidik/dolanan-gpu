@@ -1,8 +1,10 @@
 # Measured results
 
-All rates are llama.cpp decode tokens per second on three RTX 3060 Ti cards with `heretic-qwen36-35b` Q3_K_M, 65,536-token context, one request, and two runs per configuration. Raw samples and server logs are local under the ignored `results/` and `plans/*.results.json` paths.
+Rates are llama.cpp decode tokens per second on three RTX 3060 Ti cards with `heretic-qwen36-35b` Q3_K_M, 65,536-token context, and one request. Raw samples and server logs remain local under ignored `results/` and `plans/*.results.json` paths.
 
 ## Draft depth, `ub256`
+
+Two runs per configuration.
 
 | Configuration | Chat | Document | Chat acceptance | Document acceptance |
 |---|---:|---:|---:|---:|
@@ -16,6 +18,8 @@ Draft depth is workload-dependent: shallow drafting wins chat, while deeper draf
 
 ## Execution tuning
 
+Two runs per configuration.
+
 | Configuration | Chat | Document |
 |---|---:|---:|
 | MTP2, `ub128` | **99.8** | **117.3** |
@@ -27,4 +31,18 @@ Draft depth is workload-dependent: shallow drafting wins chat, while deeper draf
 | MTP8, CPU sampling | 72.7 | 132.9 |
 | MTP8, `p_min=0.20` | 77.6 | 122.5 |
 
-Backend sampling is better than CPU sampling here. `p_min=0.20` did not improve either winner. The best static general-purpose configuration so far is MTP2 with `ub128`; MTP8 remains attractive for predictable documents with `ub256` or `ub512`.
+Backend sampling is better than CPU sampling here. `p_min=0.20` did not improve either winner. The best static general-purpose configuration is MTP2 with `ub128`; MTP8 remains attractive for predictable documents with `ub256` or `ub512`.
+
+## Adaptive native MTP experiment
+
+Three runs per configuration. The final implementation starts at depth 8, falls directly to depth 2 after acceptance below 50%, and does not grow again after reaching depth 2.
+
+| Configuration | Chat | Document |
+|---|---:|---:|
+| Adaptive v1, `ub256` | 75.4 | 136.9 |
+| Adaptive v2, `ub256` | 78.9 | 133.1 |
+| Adaptive v3, `ub128` | 93.9 | 105.8 |
+| Adaptive v3, `ub256` | **94.4** | 112.6 |
+| Adaptive v3, `ub512` | 94.0 | 114.3 |
+
+The final version works but does not beat the best static settings. It is retained as patches for evaluation history and is not used in production.

@@ -1,0 +1,59 @@
+diff --git a/common/speculative.cpp b/common/speculative.cpp
+--- a/common/speculative.cpp
++++ b/common/speculative.cpp
+@@ -1364,6 +1364,7 @@
+     std::vector<int32_t> verify_h_rows;
+ 
+     std::vector<int>                i_last;
++    std::vector<int32_t>            draft_limits;
+     std::vector<std::vector<float>> chain_h;
+ 
+     common_speculative_impl_draft_mtp(const common_params_speculative & params, uint32_t n_seq)
+@@ -1439,6 +1440,7 @@
+         pending_h.assign(n_seq, std::vector<float>(n_embd, 0.0f));
+ 
+         i_last.assign(n_seq, -1);
++        draft_limits.assign(n_seq, this->params.n_max);
+         i_batch_beg.assign(n_seq, -1);
+         i_batch_end.assign(n_seq, -1);
+ 
+@@ -1466,6 +1468,7 @@
+         if (N <= 0) {
+             return;
+         }
++        draft_limits[seq_id] = params.n_max;
+ 
+         auto * ctx_dft = this->params.ctx_dft;
+         const llama_pos pos_max = llama_memory_seq_pos_max(llama_get_memory(ctx_dft), seq_id);
+@@ -1697,7 +1700,7 @@
+ 
+                 result.push_back(id);
+ 
+-                if (params.n_max <= (int) result.size()) {
++                if (draft_limits[seq_id] <= (int) result.size()) {
+                     drafting[seq_id] = false;
+                     n_drafting--;
+                     continue;
+@@ -1758,6 +1761,22 @@
+             return;
+         }
+ 
++        const int32_t n_drafted = std::max(1, n_rows - 1);
++        const float acceptance = std::min(1.0f, (float) n_accepted / (float) n_drafted);
++        const int32_t previous_limit = draft_limits[seq_id];
++
++        if (acceptance >= 0.75f) {
++            draft_limits[seq_id] = std::min(params.n_max, previous_limit + 1);
++        } else if (acceptance < 0.50f) {
++            const int32_t minimum = std::min(2, params.n_max);
++            draft_limits[seq_id] = std::max(minimum, previous_limit - 1);
++        }
++
++        if (draft_limits[seq_id] != previous_limit) {
++            SPC_TRC("adaptive MTP: seq_id=%d depth=%d acceptance=%.3f\n",
++                    seq_id, draft_limits[seq_id], acceptance);
++        }
++
+         const int32_t i_h = std::min<int32_t>(n_accepted, n_rows - 1);
+         const size_t row_bytes = (size_t) n_embd * sizeof(float);
+         std::memcpy(pending_h[seq_id].data(), verify_h[seq_id].data() + (size_t) i_h * n_embd, row_bytes);

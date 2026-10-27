@@ -1,0 +1,12 @@
+diff --git a/common/speculative.cpp b/common/speculative.cpp
+--- a/common/speculative.cpp
++++ b/common/speculative.cpp
+@@ -1767,7 +1767,7 @@
+         const float acceptance = std::min(1.0f, (float) n_accepted / (float) n_drafted);
+         const int32_t previous_limit = draft_limits[seq_id];
+ 
+-        if (acceptance >= 0.75f) {
++        if (acceptance >= 0.75f && previous_limit > 2) {
+             draft_limits[seq_id] = std::min(params.n_max, previous_limit + 1);
+         } else if (acceptance < 0.50f) {
+             const int32_t minimum = std::min(2, params.n_max);
