@@ -35,11 +35,17 @@ def parser() -> argparse.ArgumentParser:
 
 
 def print_summaries(samples: Sequence[Sample]) -> None:
+    rows = summarize(samples)
     print(f"{'WORKLOAD':<12} {'RUNS':>4} {'DECODE':>10} {'PREFILL':>10} {'ACCEPT':>9}")
-    for row in summarize(samples):
+    for row in rows:
         acceptance = f"{row.acceptance:.1%}" if row.acceptance is not None else "—"
         print(f"{row.workload:<12} {row.samples:>4} {row.decode_tps:>7.1f} t/s "
               f"{row.prefill_tps:>7.1f} t/s {acceptance:>9}")
+    if any(row.draft_ms or row.target_ms or row.catchup_ms or row.accept_ms for row in rows):
+        print(f"\n{'PHASE MS':<12} {'DRAFT':>10} {'TARGET':>10} {'CATCHUP':>10} {'ACCEPT':>10}")
+        for row in rows:
+            print(f"{row.workload:<12} {row.draft_ms:>10.1f} {row.target_ms:>10.1f} "
+                  f"{row.catchup_ms:>10.1f} {row.accept_ms:>10.1f}")
 
 
 def run_bench(args: argparse.Namespace) -> None:

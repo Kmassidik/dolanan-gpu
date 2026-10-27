@@ -19,6 +19,10 @@ class Sample:
     cached_prompt_tokens: int
     draft_tokens: int
     accepted_draft_tokens: int
+    draft_ms: float = 0.0
+    target_ms: float = 0.0
+    catchup_ms: float = 0.0
+    accept_ms: float = 0.0
 
     @classmethod
     def from_response(
@@ -44,6 +48,10 @@ class Sample:
             cached_prompt_tokens=int(timings.get("cache_n") or 0),
             draft_tokens=int(timings.get("draft_n") or 0),
             accepted_draft_tokens=int(timings.get("draft_n_accepted") or 0),
+            draft_ms=float(timings.get("draft_ms") or 0.0),
+            target_ms=float(timings.get("target_ms") or 0.0),
+            catchup_ms=float(timings.get("catchup_ms") or 0.0),
+            accept_ms=float(timings.get("accept_ms") or 0.0),
         )
 
     @classmethod
@@ -62,6 +70,10 @@ class Summary:
     prefill_tps: float
     wall_tps: float
     acceptance: float | None
+    draft_ms: float
+    target_ms: float
+    catchup_ms: float
+    accept_ms: float
 
 
 def summarize(samples: Iterable[Sample]) -> list[Summary]:
@@ -79,6 +91,10 @@ def summarize(samples: Iterable[Sample]) -> list[Summary]:
             prefill_tps=median(row.prefill_tps for row in rows),
             wall_tps=median(row.wall_tps for row in rows),
             acceptance=(accepted / drafted) if drafted else None,
+            draft_ms=median(row.draft_ms for row in rows),
+            target_ms=median(row.target_ms for row in rows),
+            catchup_ms=median(row.catchup_ms for row in rows),
+            accept_ms=median(row.accept_ms for row in rows),
         ))
     return sorted(result, key=lambda row: row.workload)
 

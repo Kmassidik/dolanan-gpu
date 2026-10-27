@@ -18,4 +18,16 @@ done
 cmake --build build --target llama-server -j16
 ```
 
-The final version reached 94.4 chat and 112.6 document tok/s with `ub256`. Static configurations remained better: MTP2/`ub128` reached 99.8 chat, and MTP8/`ub256` reached 146.1 document tok/s. The patches are retained for evaluation history, not applied to the production server.
+The final version reached 94.4 chat and 112.6 document tok/s with `ub256`. Static configurations remained better: MTP3/Q4 reached 106.3 chat and MTP8/Q4 reached 146.1 document tok/s. These patches are retained for evaluation history, not applied to production.
+
+## Native phase timings (measurement)
+
+`0004-native-phase-timings.patch` adds per-request generation-phase timers and response fields for draft, target verification, MTP catch-up, and sampling/acceptance. The 40-line `native/phase_timer.h` helper is included by the patch. Apply it independently of the adaptive patches:
+
+```bash
+cd /root/Desktop/selfhostllm/engines/llamacpp
+patch -p1 -i /root/Desktop/gpu-optimized/patches/0004-native-phase-timings.patch
+cmake --build build --target llama-server -j16
+```
+
+See `PHASES.md` for measured results. Target verification dominates; catch-up is only about 3.6% of measured phase time.
