@@ -47,6 +47,18 @@ python3 -m pip install -e .
 gpu-optimized bench --help
 ```
 
+## Configuration sweeps
+
+Run this on the server itself. A sweep starts each configuration in isolation, waits for readiness, benchmarks both workloads, records failures, and stops the process before trying the next one.
+
+```bash
+python3 -m gpu_optimized.sweep \
+  --plan plans/mtp-depth.json \
+  --replace-existing
+```
+
+`--replace-existing` deliberately kills any running `llama-server` first. Omit it when an existing service must remain untouched. Results and per-configuration server logs are written beside the plan's result file. API keys come from `LLAMA_API_KEY` and are never saved in result JSON.
+
 ## Method
 
 - `chat`: 128-token open-ended explanation.
@@ -60,7 +72,7 @@ Prompt processing can use server cache on later runs. Decode rate is therefore t
 
 ## Scope
 
-This is the measurement layer for optimization work. It benchmarks an existing server; it does not restart it, change kernels, or pretend a new language automatically improves inference. Use it to decide which changes deserve deeper engine work.
+This is the measurement and experiment-control layer for optimization work. It benchmarks an existing server and can run explicit configuration sweep plans. It does not pretend a new language automatically improves inference; native changes still require profiling and before/after measurements.
 
 ## License
 
