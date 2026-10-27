@@ -2,7 +2,7 @@
 
 `gpu-optimized`: evidence-first benchmarks and measured serving configurations for llama.cpp GPU inference. Built for a three-RTX-3060 Ti server, with benchmark support for any OpenAI-compatible llama.cpp endpoint.
 
-The tool measures **decode throughput**, **prefill throughput**, and **draft acceptance**. It does not claim that a module is active or an optimization works merely because a flag is present.
+The tool measures **decode throughput**, **prefill throughput**, **draft acceptance**, and native inference phases. It does not claim that a module is active or an optimization works merely because a flag is present.
 
 ## Requirements
 
@@ -16,11 +16,12 @@ On the GPU box, start the best measured configuration for the workload:
 
 ```bash
 export LLAMA_API_KEY='your-key'
-./scripts/serve.sh chat      # MTP3, Q4 target KV: general use
-./scripts/serve.sh document  # MTP8, Q4 target KV: predictable documents
+./scripts/serve.sh chat      # 64K, MTP3/Q4: general use
+./scripts/serve.sh document  # 64K, MTP8/Q4: predictable documents
+./scripts/serve.sh long      # 250K, MTP3/Q4 + one RAM-backed MoE layer
 ```
 
-The launcher replaces the running `llama-server`. It reads the API key from the environment and does not store it in the repository. See `RESULTS.md` for measurements and alternatives.
+The launcher replaces the running `llama-server`. It reads the API key from the environment and does not store it in the repository. See `RESULTS.md`, `CONTEXT.md`, and `PHASES.md` for measurements.
 
 ## Benchmark
 
@@ -72,6 +73,7 @@ python3 -m gpu_optimized.sweep \
 - Reported decode rate: llama.cpp `timings.predicted_per_second`.
 - Reported summary: median across runs.
 - Acceptance: total accepted draft tokens divided by total proposed draft tokens.
+- Native phase fields: `draft_ms`, `target_ms`, `catchup_ms`, and `accept_ms` when the instrumented server provides them.
 - Raw samples are saved so comparisons do not depend on rounded console output.
 
 Prompt processing can use server cache on later runs. Decode rate is therefore the primary comparison metric; prefill and wall-clock rate are retained in the raw samples.

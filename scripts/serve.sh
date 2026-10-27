@@ -7,13 +7,16 @@ cd "$root"
 
 case "$mode" in
   chat)
-    spec=(--spec-type draft-mtp --spec-draft-n-max 3 -ctk q4_0 -ctv q4_0 -ub 256)
+    spec=(--spec-type draft-mtp --spec-draft-n-max 3 -ctk q4_0 -ctv q4_0 -ub 256 -c 65536)
     ;;
   document)
-    spec=(--spec-type draft-mtp --spec-draft-n-max 8 -ctk q4_0 -ctv q4_0 -ub 256)
+    spec=(--spec-type draft-mtp --spec-draft-n-max 8 -ctk q4_0 -ctv q4_0 -ub 256 -c 65536)
+    ;;
+  long)
+    spec=(--spec-type draft-mtp --spec-draft-n-max 3 -ctk q4_0 -ctv q4_0 -ub 256 -c 256000 -ctkd q4_0 -ctvd q4_0 -ncmoe 1 -t 16)
     ;;
   *)
-    echo "usage: $0 [chat|document]" >&2
+    echo "usage: $0 [chat|document|long]" >&2
     exit 2
     ;;
 esac
@@ -26,7 +29,7 @@ exec engines/llamacpp/build/bin/llama-server \
   --mmproj models/gguf/qwen36-35b-heretic/mmproj-BF16.gguf \
   "${spec[@]}" \
   -ngl 99 --split-mode layer -fa on \
-  -c 65536 --parallel 1 --cache-reuse 256 \
+  --parallel 1 --cache-reuse 256 \
   --no-mmproj-offload --jinja \
   --temp 1.0 --top-p 0.95 --top-k 20 \
   --api-key "$LLAMA_API_KEY" \

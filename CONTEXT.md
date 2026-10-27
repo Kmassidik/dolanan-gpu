@@ -19,4 +19,18 @@ Two runs per configuration.
 
 The useful architecture is to keep KV on the GPUs and offload only one MoE layer to host RAM. This frees enough VRAM for 250K while limiting CPU work. More offloaded MoE layers generally reduce throughput. Full KV offload did not provide a working alternative.
 
-The tradeoff against 64K MTP3/Q4 is approximately 30% lower chat throughput and 22% lower document throughput. The result is a real 256,000-token context, not a claim that RAM offload is free.
+## CPU threads for the one-layer RAM tier
+
+Three runs per configuration.
+
+| CPU threads | Chat decode | Document decode |
+|---:|---:|---:|
+| 8 | 72.7 | 89.2 |
+| 12 | 75.2 | 92.5 |
+| **16** | **76.8** | **93.6** |
+| 24 | 76.4 | 92.9 |
+| 32 | 69.9 | 85.2 |
+
+Sixteen threads is the best tested setting. `scripts/serve.sh long` uses 250K context, one RAM-backed MoE layer, Q4 target/draft KV, and 16 CPU threads.
+
+The tradeoff against 64K MTP3/Q4 is approximately 28% lower chat throughput and 20% lower document throughput. The result is a real 256,000-token context, not a claim that RAM offload is free.
