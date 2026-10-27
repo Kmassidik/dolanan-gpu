@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gpu-optimized"
+version = "0.1.0"
+description = "Evidence-first llama.cpp GPU inference benchmarks"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = []
+
+[project.scripts]
+gpu-optimized = "gpu_optimized.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["gpu_optimized*"]
