@@ -40,28 +40,52 @@ export function Dashboard() {
 
   useEffect(() => {
     let alive = true;
-    async function load() {
+
+    async function loadTelemetry() {
       try {
-        const [latest, hist, sum, recent] = await Promise.all([
-          api<Telemetry>("/api/telemetry/latest"),
-          api<{ samples: HistorySample[] }>("/api/telemetry/history?minutes=60"),
-          api<Summary>("/api/summary"),
-          api<{ requests: RequestRow[] }>("/api/requests/recent?limit=8"),
-        ]);
+        const latest = await api<Telemetry>("/api/telemetry/latest");
         if (!alive) return;
         setGpus(latest.gpus);
-        setHistory(hist.samples);
-        setSummary(sum);
-        setRequests(recent.requests);
         setUpdated(latest.ts * 1000);
         setError("");
       } catch (err) {
         if (!signedOut(err) && alive) setError("Live telemetry unavailable.");
       }
     }
-    load();
-    const fast = window.setInterval(load, 3000);
-    const slow = window.setInterval(load, 15000);
+
+    async function loadHistory() {
+      try {
+        const hist = await api<{ samples: HistorySample[] }>(
+          "/api/telemetry/history?minutes=60&gpu=0&points=60",
+        );
+        if (alive) setHistory(hist.samples);
+      } catch (err) {
+        signedOut(err);
+      }
+    }
+
+    async function loadSummary() {
+      try {
+        const [sum, recent] = await Promise.all([
+          api<Summary>("/api/summary"),
+          api<{ requests: RequestRow[] }>("/api/requests/recent?limit=8"),
+        ]);
+        if (!alive) return;
+        setSummary(sum);
+        setRequests(recent.requests);
+      } catch (err) {
+        signedOut(err);
+      }
+    }
+
+    loadTelemetry();
+    loadHistory();
+    loadSummary();
+    const fast = window.setInterval(loadTelemetry, 3000);
+    const slow = window.setInterval(() => {
+      loadHistory();
+      loadSummary();
+    }, 15000);
     return () => {
       alive = false;
       window.clearInterval(fast);

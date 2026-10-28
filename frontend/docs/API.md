@@ -81,15 +81,21 @@ Returns `200`, clears cookies.
 }
 ```
 
-### GET `/api/telemetry/history?minutes=60`
+### GET `/api/telemetry/history?minutes=60&gpu=0&points=60`
 
 ```text
 minutes: 1..1440
+gpu:     0..n
+points:  1..240
 ```
+
+History is downsampled server-side; it does not return every 2-second sample.
 
 ```json
 {
   "minutes": 60,
+  "gpu": 0,
+  "bucket_seconds": 60,
   "samples": [
     {
       "ts": 1793164300,

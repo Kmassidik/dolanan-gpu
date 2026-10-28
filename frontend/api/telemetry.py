@@ -79,11 +79,26 @@ def latest() -> dict[str, Any]:
 
 
 @router.get("/history")
-def history(minutes: int = 60) -> dict[str, Any]:
+def history(minutes: int = 60, gpu: int = 0, points: int = 60) -> dict[str, Any]:
     minutes = max(1, min(minutes, 1440))
+    points = max(1, min(points, 240))
     since = int(time.time()) - minutes * 60
+    bucket = max(1, (minutes * 60) // points)
     data = db.rows(
-        "SELECT ts,gpu_index,temp_c,power_w,clock_mhz,util_pct,vram_used_mib,vram_total_mib,fan_pct FROM gpu_samples WHERE ts>=? ORDER BY ts",
-        (since,),
+        """
+        SELECT CAST(ts / ? AS INTEGER) * ? AS ts,
+               gpu_index,
+               AVG(temp_c) AS temp_c,
+               AVG(power_w) AS power_w,
+               AVG(clock_mhz) AS clock_mhz,
+               AVG(util_pct) AS util_pct,
+               AVG(vram_used_mib) AS vram_used_mib,
+               AVG(fan_pct) AS fan_pct
+        FROM gpu_samples
+        WHERE ts>=? AND gpu_index=?
+        GROUP BY CAST(ts / ? AS INTEGER)
+        ORDER BY ts
+        """,
+        (bucket, bucket, since, gpu, bucket),
     )
-    return {"minutes": minutes, "samples": data}
+    return {"minutes": minutes, "gpu": gpu, "bucket_seconds": bucket, "samples": data}
