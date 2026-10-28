@@ -184,6 +184,46 @@ Content-Type: application/json
 
 Limits: 64 KiB body, validated numeric fields.
 
+## API keys
+
+All routes require a session cookie. Creating and revoking also require `X-CSRF-Token`.
+
+### GET `/api/keys`
+
+```json
+{
+  "keys": [
+    {
+      "name": "opencode-laptop",
+      "prefix": "gk_ZGg3dpcT",
+      "rpm": 60,
+      "created_at": 1793169136,
+      "enabled": true,
+      "admin": false
+    }
+  ]
+}
+```
+
+### POST `/api/keys`
+
+```json
+{ "name": "opencode-laptop", "rpm": 60 }
+```
+
+Returns `201` with the plaintext key exactly once:
+
+```json
+{
+  "key": "gk_...",
+  "entry": { "name": "opencode-laptop", "prefix": "gk_Zg3dpcT", "rpm": 60, "enabled": true }
+}
+```
+
+### DELETE `/api/keys/{name}`
+
+Removes the key immediately.
+
 ## Health
 
 ### GET `/api/health`

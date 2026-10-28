@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { GpuCard } from "../components/GpuCard";
 import { RequestsTable } from "../components/RequestsTable";
 import { StatCard } from "../components/StatCard";
@@ -108,6 +109,9 @@ export function Dashboard() {
         </div>
         <div className="topbar-actions">
           <span className="live"><i /> {updated ? "live" : "connecting"}</span>
+          <Link className="ghost" to="/keys">
+            <img className="button-icon" src="/icons/shield.webp" alt="" /> API keys
+          </Link>
           <span className="user">{user?.username}</span>
           <button className="ghost" onClick={() => void logout()}>
             <img className="button-icon" src="/icons/logout.webp" alt="" /> Sign out

@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 
 from . import db, telemetry
 from .auth import ensure_seed_user, router as auth_router, session_user
+from .keys import router as keys_router
 from .rest import router as rest_router
 from .telemetry import router as telemetry_router
 
@@ -58,3 +59,4 @@ def health() -> dict[str, Any]:
 app.include_router(auth_router)
 app.include_router(telemetry_router)
 app.include_router(rest_router)
+app.include_router(keys_router)
