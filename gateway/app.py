@@ -6,6 +6,7 @@ import hmac
 import json
 import os
 import time
+import uuid
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -21,6 +22,16 @@ BACKEND = os.environ.get("GATEWAY_BACKEND", "http://127.0.0.1:8081").rstrip("/")
 BACKEND_KEY_FILE = Path(
     os.environ.get("GATEWAY_BACKEND_KEY_FILE", "/root/Desktop/selfhostllm/glicc-api.token")
 )
+FRONTEND_INGEST = os.environ.get(
+    "FRONTEND_INGEST_URL", "http://127.0.0.1:8090/api/requests"
+).strip()
+FRONTEND_INGEST_TOKEN_FILE = Path(
+    os.environ.get(
+        "FRONTEND_INGEST_TOKEN_FILE",
+        "/root/Desktop/gpu-optimized/frontend/data/ingest.token",
+    )
+)
+MAX_BODY_BYTES = 8 * 1024 * 1024
 
 DEFAULTS = {
     "max_queue": 8,
@@ -229,6 +240,53 @@ def response_headers(resp: httpx.Response) -> dict[str, str]:
     return {k: v for k, v in resp.headers.items() if k.lower() not in skip}
 
 
+def request_record(
+    request_id: str,
+    path: str,
+    policy: dict[str, Any],
+    model: str | None,
+    status: str,
+    usage: dict[str, Any] | None = None,
+    timings: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    usage = usage or {}
+    timings = timings or {}
+    prompt_tokens = int(usage.get("prompt_tokens") or timings.get("prompt_n") or 0)
+    completion_tokens = int(usage.get("completion_tokens") or timings.get("predicted_n") or 0)
+    ttft_ms = timings.get("prompt_ms")
+    if ttft_ms is None and timings.get("prompt_per_second"):
+        ttft_ms = 1000.0 * prompt_tokens / float(timings["prompt_per_second"])
+    return {
+        "request_id": request_id,
+        "model": model,
+        "status": status,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "ttft_ms": ttft_ms,
+        "decode_tps": timings.get("predicted_per_second"),
+        "api_key_name": policy.get("name"),
+        "finished_at": int(time.time()),
+        "endpoint": path,
+    }
+
+
+async def ingest(payload: dict[str, Any]) -> None:
+    if not FRONTEND_INGEST:
+        return
+    headers = {}
+    try:
+        token = FRONTEND_INGEST_TOKEN_FILE.read_text().strip()
+        if token:
+            headers["authorization"] = "Bearer " + token
+    except OSError:
+        return
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            await client.post(FRONTEND_INGEST, json=payload, headers=headers)
+    except Exception:
+        pass
+
+
 @app.get("/healthz")
 async def healthz() -> dict[str, Any]:
     snap = LIMITER.snapshot()
@@ -256,7 +314,15 @@ async def v1(path: str, request: Request):
     policy = policy_for(request)
     check_rpm(policy)
 
+    try:
+        declared = int(request.headers.get("content-length") or 0)
+    except ValueError:
+        raise HTTPException(400, "invalid content-length") from None
+    if declared > MAX_BODY_BYTES:
+        raise HTTPException(413, "request body too large")
     raw = await request.body()
+    if len(raw) > MAX_BODY_BYTES:
+        raise HTTPException(413, "request body too large")
     body: dict[str, Any] = {}
     if raw:
         try:
@@ -264,6 +330,7 @@ async def v1(path: str, request: Request):
         except json.JSONDecodeError:
             raise HTTPException(400, "invalid JSON body") from None
 
+    request_id = uuid.uuid4().hex
     is_long = estimate_tokens(body) >= int(config()["long_context_tokens"])
     queued = path != "models"
     key = str(policy["name"])
@@ -296,6 +363,17 @@ async def v1(path: str, request: Request):
             if resp.status_code >= 400:
                 payload = await resp.aread()
                 await resp.aclose()
+                asyncio.create_task(
+                    ingest(
+                        request_record(
+                            request_id,
+                            path,
+                            policy,
+                            body.get("model"),
+                            "error",
+                        )
+                    )
+                )
                 return Response(
                     payload,
                     status_code=resp.status_code,
@@ -303,15 +381,41 @@ async def v1(path: str, request: Request):
                     media_type=resp.headers.get("content-type"),
                 )
             release_needed = False
+            meta: dict[str, Any] = {}
 
             async def chunks():
                 try:
                     async for chunk in resp.aiter_raw():
                         yield chunk
+                        if b'"usage"' in chunk or b'"timings"' in chunk:
+                            for line in chunk.splitlines():
+                                if not line.startswith(b"data: "):
+                                    continue
+                                try:
+                                    item = json.loads(line[6:])
+                                except (json.JSONDecodeError, UnicodeDecodeError):
+                                    continue
+                                if isinstance(item.get("usage"), dict):
+                                    meta["usage"] = item["usage"]
+                                if isinstance(item.get("timings"), dict):
+                                    meta["timings"] = item["timings"]
                 finally:
                     await resp.aclose()
                     if admitted:
                         await LIMITER.release(key, is_long)
+                    asyncio.create_task(
+                        ingest(
+                            request_record(
+                                request_id,
+                                path,
+                                policy,
+                                body.get("model"),
+                                "completed",
+                                meta.get("usage"),
+                                meta.get("timings"),
+                            )
+                        )
+                    )
 
             return StreamingResponse(
                 chunks(),
@@ -327,6 +431,27 @@ async def v1(path: str, request: Request):
             headers=outgoing_headers(request),
             params=request.query_params,
         )
+        data: dict[str, Any] = {}
+        try:
+            parsed = resp.json()
+            if isinstance(parsed, dict):
+                data = parsed
+        except ValueError:
+            pass
+        if queued:
+            asyncio.create_task(
+                ingest(
+                    request_record(
+                        request_id,
+                        path,
+                        policy,
+                        body.get("model"),
+                        "completed" if resp.status_code < 400 else "error",
+                        data.get("usage"),
+                        data.get("timings"),
+                    )
+                )
+            )
         return Response(
             resp.content,
             status_code=resp.status_code,

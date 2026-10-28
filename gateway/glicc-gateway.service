@@ -9,6 +9,8 @@ WorkingDirectory=/root/Desktop/gpu-optimized/gateway
 Environment=GATEWAY_CONFIG=/root/Desktop/gpu-optimized/gateway/keys.json
 Environment=GATEWAY_BACKEND=http://127.0.0.1:8081
 Environment=GATEWAY_BACKEND_KEY_FILE=/root/Desktop/selfhostllm/glicc-api.token
+Environment=FRONTEND_INGEST_URL=http://127.0.0.1:8090/api/requests
+Environment=FRONTEND_INGEST_TOKEN_FILE=/root/Desktop/gpu-optimized/frontend/data/ingest.token
 ExecStart=/root/Desktop/gpu-optimized/gateway/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8083 --workers 1 --timeout-keep-alive 75
 Restart=on-failure
 RestartSec=2

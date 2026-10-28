@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hmac
+import json
 import os
 import sqlite3
 import subprocess
@@ -18,6 +20,10 @@ PUBLIC = BASE / "public"
 DATA = BASE / "data"
 DB_PATH = Path(os.environ.get("FRONTEND_DB", DATA / "gliccops.db"))
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+TOKEN_FILE = Path(
+    os.environ.get("FRONTEND_TOKEN_FILE", DATA / "ingest.token")
+)
+MAX_INGEST_BYTES = 64 * 1024
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS gpu_samples (
@@ -189,9 +195,20 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="gliccOps frontend API", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 
+def require_ingest(request: Request) -> None:
+    try:
+        expected = TOKEN_FILE.read_text().strip()
+    except OSError:
+        expected = ""
+    header = request.headers.get("authorization", "")
+    supplied = header[7:].strip() if header.lower().startswith("bearer ") else ""
+    if not expected or not supplied or not hmac.compare_digest(expected, supplied):
+        raise HTTPException(401, "ingest token required")
+
+
 @app.get("/api/health")
 def health() -> dict[str, Any]:
-    return {"status": "ok", "database": str(DB_PATH), "latest_ts": LATEST_TS}
+    return {"status": "ok", "latest_ts": LATEST_TS}
 
 
 @app.get("/api/telemetry/latest")
@@ -234,21 +251,53 @@ def summary(days: int = 30) -> dict[str, Any]:
         """,
         (since,),
     )
-    trace = one("SELECT * FROM requests ORDER BY created_at DESC LIMIT 1")
+    trace = one(
+        "SELECT request_id,model,status,prompt_tokens,completion_tokens,ttft_ms,decode_tps,created_at FROM requests ORDER BY created_at DESC LIMIT 1"
+    )
     return {"days": days, **r, "latest_trace": trace or None}
 
 
 @app.get("/api/requests/recent")
-def requests_recent(limit: int = 20) -> dict[str, Any]:
+def requests_recent(request: Request, limit: int = 20) -> dict[str, Any]:
+    require_ingest(request)
     limit = max(1, min(limit, 100))
     return {"requests": rows("SELECT * FROM requests ORDER BY created_at DESC LIMIT ?", (limit,))}
 
 
 @app.post("/api/requests")
 async def record_request(request: Request) -> JSONResponse:
-    body = await request.json()
+    require_ingest(request)
+    try:
+        length = int(request.headers.get("content-length") or 0)
+    except ValueError:
+        raise HTTPException(400, "invalid content-length") from None
+    if length > MAX_INGEST_BYTES:
+        raise HTTPException(413, "request record too large")
+    raw = await request.body()
+    if len(raw) > MAX_INGEST_BYTES:
+        raise HTTPException(413, "request record too large")
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError:
+        raise HTTPException(400, "invalid JSON") from None
+    if not isinstance(body, dict):
+        raise HTTPException(400, "object required")
     now = int(time.time())
-    request_id = str(body.get("request_id") or f"req-{now}-{time.time_ns()}")
+    request_id = str(body.get("request_id") or f"req-{now}-{time.time_ns()}")[:128]
+    try:
+        prompt_tokens = max(0, int(body.get("prompt_tokens", 0)))
+        completion_tokens = max(0, int(body.get("completion_tokens", 0)))
+        created_at = int(body.get("created_at", now))
+        finished_at = body.get("finished_at")
+        finished_at = int(finished_at) if finished_at is not None else None
+        ttft_ms = body.get("ttft_ms")
+        ttft_ms = float(ttft_ms) if ttft_ms is not None else None
+        decode_tps = body.get("decode_tps")
+        decode_tps = float(decode_tps) if decode_tps is not None else None
+    except (TypeError, ValueError):
+        raise HTTPException(400, "invalid numeric field") from None
+    if not (0 <= created_at <= now + 300):
+        raise HTTPException(400, "invalid created_at")
     assert DB is not None
     with DB_LOCK:
         DB.execute(
@@ -259,15 +308,15 @@ async def record_request(request: Request) -> JSONResponse:
             """,
             (
                 request_id,
-                body.get("model"),
-                body.get("status", "completed"),
-                int(body.get("prompt_tokens", 0)),
-                int(body.get("completion_tokens", 0)),
-                body.get("ttft_ms"),
-                body.get("decode_tps"),
-                body.get("api_key_name"),
-                int(body.get("created_at", now)),
-                body.get("finished_at"),
+                str(body.get("model") or "")[:128],
+                str(body.get("status") or "completed")[:32],
+                prompt_tokens,
+                completion_tokens,
+                ttft_ms,
+                decode_tps,
+                str(body.get("api_key_name") or "")[:64],
+                created_at,
+                finished_at,
             ),
         )
         DB.commit()
