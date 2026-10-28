@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hmac
 import json
 import os
@@ -12,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 BASE = Path(__file__).resolve().parent
@@ -24,6 +25,8 @@ TOKEN_FILE = Path(
     os.environ.get("FRONTEND_TOKEN_FILE", DATA / "ingest.token")
 )
 MAX_INGEST_BYTES = 64 * 1024
+FRONTEND_USER = os.environ.get("FRONTEND_USER", "admin")
+FRONTEND_PASS = os.environ.get("FRONTEND_PASS", "")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS gpu_samples (
@@ -193,6 +196,40 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="gliccOps frontend API", docs_url=None, redoc_url=None, lifespan=lifespan)
+
+
+@app.middleware("http")
+async def basic_auth(request: Request, call_next):
+    # Gateway ingest paths authenticate with the dedicated ingest token.
+    if request.url.path in {"/api/requests", "/api/requests/recent"}:
+        return await call_next(request)
+    if not FRONTEND_PASS:
+        return JSONResponse({"error": "frontend auth not configured"}, status_code=503)
+    header = request.headers.get("authorization", "")
+    if not header.lower().startswith("basic "):
+        return Response(
+            "Unauthorized",
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="gliccOps"'},
+        )
+    try:
+        decoded = base64.b64decode(header[6:].strip()).decode("utf-8")
+        user, password = decoded.split(":", 1)
+    except Exception:
+        return Response(
+            "Unauthorized",
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="gliccOps"'},
+        )
+    if hmac.compare_digest(user, FRONTEND_USER) and hmac.compare_digest(
+        password, FRONTEND_PASS
+    ):
+        return await call_next(request)
+    return Response(
+        "Unauthorized",
+        status_code=401,
+        headers={"WWW-Authenticate": 'Basic realm="gliccOps"'},
+    )
 
 
 def require_ingest(request: Request) -> None:
