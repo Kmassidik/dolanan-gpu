@@ -1,5 +1,5 @@
 [Unit]
-Description=gliccOps frontend API
+Description=gliccOps API
 After=network-online.target
 Wants=network-online.target
 
@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=/root/Desktop/gpu-optimized/frontend
 EnvironmentFile=/etc/glicc-frontend.env
-ExecStart=/root/Desktop/gpu-optimized/frontend/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8082 --workers 1
+ExecStart=/root/Desktop/gpu-optimized/frontend/.venv/bin/uvicorn api.main:app --host 127.0.0.1 --port 8090 --workers 1
 Restart=on-failure
 RestartSec=2
 NoNewPrivileges=true

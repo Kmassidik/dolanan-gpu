@@ -1,0 +1,10 @@
+services:
+  web:
+    build: .
+    container_name: gliccops-web
+    network_mode: host
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
