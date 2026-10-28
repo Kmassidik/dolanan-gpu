@@ -112,6 +112,7 @@ export function Dashboard() {
           <Link className="ghost" to="/keys">
             <img className="button-icon" src="/icons/shield.webp" alt="" /> API keys
           </Link>
+          <Link className="ghost" to="/docs">Docs</Link>
           <span className="user">{user?.username}</span>
           <button className="ghost" onClick={() => void logout()}>
             <img className="button-icon" src="/icons/logout.webp" alt="" /> Sign out

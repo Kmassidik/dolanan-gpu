@@ -63,7 +63,9 @@ export function Login() {
             {busy ? "Signing in…" : "Sign in"}
           </button>
         </form>
-        <p className="fine-print">Private system. Access is logged and rate-limited.</p>
+        <p className="fine-print">
+          Private system. Access is logged and rate-limited. <a href="/docs">Read the docs</a>.
+        </p>
       </section>
     </main>
   );
