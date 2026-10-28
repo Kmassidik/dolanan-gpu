@@ -79,13 +79,15 @@ export function Dashboard() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <span className="brand-mark" aria-hidden="true" />
+          <img className="brand-icon" src="/icons/gpu.webp" alt="" />
           <span>gliccOps</span>
         </div>
         <div className="topbar-actions">
           <span className="live"><i /> {updated ? "live" : "connecting"}</span>
           <span className="user">{user?.username}</span>
-          <button className="ghost" onClick={() => void logout()}>Sign out</button>
+          <button className="ghost" onClick={() => void logout()}>
+            <img className="button-icon" src="/icons/logout.webp" alt="" /> Sign out
+          </button>
         </div>
       </header>
 
@@ -102,10 +104,11 @@ export function Dashboard() {
         </section>
 
         <section className="stats">
-          <StatCard label="Requests" value={compact(summary.requests)} note="last 30 days" />
-          <StatCard label="Tokens" value={compact(summary.tokens)} note="completion tokens" />
-          <StatCard label="Rate limited" value={compact(summary.rate_limited)} note="gateway rejections" />
+          <StatCard icon="queue" label="Requests" value={compact(summary.requests)} note="last 30 days" />
+          <StatCard icon="token" label="Tokens" value={compact(summary.tokens)} note="completion tokens" />
+          <StatCard icon="warning" label="Rate limited" value={compact(summary.rate_limited)} note="gateway rejections" />
           <StatCard
+            icon="clock"
             label="Avg TTFT"
             value={summary.avg_ttft_ms == null ? "—" : `${summary.avg_ttft_ms.toFixed(0)} ms`}
             note="prompt latency"
@@ -115,7 +118,7 @@ export function Dashboard() {
         <section className="split">
           <div className="panel">
             <div className="panel-head">
-              <h2>Compute fleet</h2>
+              <h2><img className="panel-icon" src="/icons/gpu.webp" alt="" /> Compute fleet</h2>
               <span className="muted">{gpus.length} nodes</span>
             </div>
             <div className="fleet-summary">
@@ -139,7 +142,7 @@ export function Dashboard() {
 
         <section className="panel">
           <div className="panel-head">
-            <h2>Latest requests</h2>
+            <h2><img className="panel-icon" src="/icons/queue.webp" alt="" /> Latest requests</h2>
             <span className="muted">gateway → SQLite</span>
           </div>
           <RequestsTable requests={requests} />

@@ -31,7 +31,7 @@ export function Login() {
     <main className="login-shell">
       <section className="login-card">
         <div className="brand">
-          <span className="brand-mark" aria-hidden="true" />
+          <img className="brand-icon" src="/icons/gpu.webp" alt="" />
           <span>gliccOps</span>
         </div>
         <p className="eyebrow">Command Center</p>

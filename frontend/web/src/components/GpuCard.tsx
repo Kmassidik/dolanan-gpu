@@ -11,9 +11,12 @@ export function GpuCard({ gpu }: { gpu: Gpu }) {
   return (
     <article className="gpu-card">
       <header>
-        <div>
-          <span className="eyebrow">GPU {gpu.gpu_index}</span>
-          <h3>RTX 3060 Ti</h3>
+        <div className="gpu-title">
+          <img className="gpu-icon" src="/icons/gpu.webp" alt="" />
+          <div>
+            <span className="eyebrow">GPU {gpu.gpu_index}</span>
+            <h3>RTX 3060 Ti</h3>
+          </div>
         </div>
         <span className={`status-dot ${util > 0 ? "hot" : ""}`} aria-label="live" />
       </header>
