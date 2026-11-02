@@ -37,3 +37,16 @@ export type RequestRow = {
   decode_tps: number | null;
   created_at: number;
 };
+
+export type KeyRow = {
+  name: string;
+  prefix: string;
+  rpm: number;
+  created_at: number | null;
+  enabled: boolean;
+  admin: boolean;
+  // Cumulative totals, not a request-by-request log.
+  total_requests: number;
+  total_tokens: number;
+  last_used_at: number | null;
+};

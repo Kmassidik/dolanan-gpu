@@ -50,6 +50,19 @@ CREATE TABLE IF NOT EXISTS daily_metrics (
     cost_usd REAL NOT NULL DEFAULT 0
 );
 
+-- Cumulative, one row per API key - never grows past the number of keys that
+-- have ever made a request. This is the "total usage" the Keys page reads;
+-- it does not depend on how long raw rows are kept in `requests`.
+CREATE TABLE IF NOT EXISTS key_usage (
+    api_key_name TEXT PRIMARY KEY,
+    total_requests INTEGER NOT NULL DEFAULT 0,
+    total_prompt_tokens INTEGER NOT NULL DEFAULT 0,
+    total_completion_tokens INTEGER NOT NULL DEFAULT 0,
+    rate_limited INTEGER NOT NULL DEFAULT 0,
+    first_seen_at INTEGER,
+    last_used_at INTEGER
+);
+
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -96,7 +109,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts);
 
-PRAGMA user_version = 2;
+PRAGMA user_version = 3;
 """
 
 
@@ -137,6 +150,75 @@ def execute(sql: str, args: tuple = ()) -> None:
     with DB_LOCK:
         DB.execute(sql, args)
         DB.commit()
+
+
+def record_request_usage(
+    *,
+    api_key_name: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    rate_limited: bool,
+    ts: int,
+    keep_raw_row: dict[str, Any] | None,
+) -> None:
+    """One ingested gateway request: update permanent per-key and per-day
+    totals (these never grow - one row per key, one row per day), and
+    optionally keep a single bounded raw row for the "recent requests" debug
+    view. The raw `requests` table is pruned to the last 7 days on the same
+    cadence as gpu_samples, so it never becomes the thing that grows forever;
+    the totals above are what "total usage" actually reads from.
+    """
+    assert DB is not None
+    name = api_key_name or "(unnamed)"
+    day = time.strftime("%Y-%m-%d", time.gmtime(ts))
+    with DB_LOCK:
+        DB.execute(
+            """
+            INSERT INTO key_usage
+                (api_key_name, total_requests, total_prompt_tokens,
+                 total_completion_tokens, rate_limited, first_seen_at, last_used_at)
+            VALUES (?, 1, ?, ?, ?, ?, ?)
+            ON CONFLICT(api_key_name) DO UPDATE SET
+                total_requests = total_requests + 1,
+                total_prompt_tokens = total_prompt_tokens + excluded.total_prompt_tokens,
+                total_completion_tokens = total_completion_tokens + excluded.total_completion_tokens,
+                rate_limited = rate_limited + excluded.rate_limited,
+                last_used_at = excluded.last_used_at
+            """,
+            (name, prompt_tokens, completion_tokens, int(rate_limited), ts, ts),
+        )
+        DB.execute(
+            """
+            INSERT INTO daily_metrics (day, requests, tokens, rate_limited, cost_usd)
+            VALUES (?, 1, ?, ?, 0)
+            ON CONFLICT(day) DO UPDATE SET
+                requests = requests + 1,
+                tokens = tokens + excluded.tokens,
+                rate_limited = rate_limited + excluded.rate_limited
+            """,
+            (day, completion_tokens, int(rate_limited)),
+        )
+        if keep_raw_row is not None:
+            DB.execute(
+                """
+                INSERT OR REPLACE INTO requests
+                (request_id,model,status,prompt_tokens,completion_tokens,ttft_ms,decode_tps,api_key_name,created_at,finished_at)
+                VALUES (:request_id,:model,:status,:prompt_tokens,:completion_tokens,:ttft_ms,:decode_tps,:api_key_name,:created_at,:finished_at)
+                """,
+                keep_raw_row,
+            )
+        if int(time.time()) % 300 < 2:
+            DB.execute("DELETE FROM requests WHERE created_at < ?", (int(time.time()) - 7 * 86400,))
+        DB.commit()
+
+
+def key_usage_by_name() -> dict[str, dict[str, Any]]:
+    assert DB is not None
+    with DB_LOCK:
+        return {
+            r["api_key_name"]: dict(r)
+            for r in DB.execute("SELECT * FROM key_usage").fetchall()
+        }
 
 
 def insert_samples(samples: list[dict[str, Any]]) -> None:

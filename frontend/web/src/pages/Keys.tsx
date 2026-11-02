@@ -2,15 +2,13 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { useAuth } from "../auth";
+import type { KeyRow } from "../types";
 
-type KeyRow = {
-  name: string;
-  prefix: string;
-  rpm: number;
-  created_at: number | null;
-  enabled: boolean;
-  admin: boolean;
-};
+function compact(value: number) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return value.toString();
+}
 
 export function Keys() {
   const { user, logout } = useAuth();
@@ -110,7 +108,7 @@ export function Keys() {
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Name</th><th>Prefix</th><th>RPM</th><th>Created</th><th /></tr>
+                    <tr><th>Name</th><th>Prefix</th><th>RPM</th><th>Requests</th><th>Tokens</th><th>Last used</th><th>Created</th><th /></tr>
                   </thead>
                   <tbody>
                     {keys.map((key) => (
@@ -118,6 +116,9 @@ export function Keys() {
                         <td>{key.name}</td>
                         <td className="mono">{key.prefix}…</td>
                         <td className="mono">{key.rpm}</td>
+                        <td className="mono">{compact(key.total_requests)}</td>
+                        <td className="mono">{compact(key.total_tokens)}</td>
+                        <td>{key.last_used_at ? new Date(key.last_used_at * 1000).toLocaleDateString() : "never"}</td>
                         <td>{key.created_at ? new Date(key.created_at * 1000).toLocaleDateString() : "—"}</td>
                         <td><button className="danger" onClick={() => void revoke(key.name)}>Revoke</button></td>
                       </tr>

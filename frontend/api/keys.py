@@ -12,6 +12,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
+from . import db
+
 router = APIRouter(prefix="/api/keys")
 KEYS_PATH = Path(
     os.environ.get("GATEWAY_KEYS_FILE", "/root/Desktop/gpu-optimized/gateway/keys.json")
@@ -47,7 +49,8 @@ def save(data: dict[str, Any]) -> None:
     os.chmod(KEYS_PATH, 0o600)
 
 
-def public_entry(entry: dict[str, Any]) -> dict[str, Any]:
+def public_entry(entry: dict[str, Any], usage: dict[str, Any] | None = None) -> dict[str, Any]:
+    usage = usage or {}
     return {
         "name": entry.get("name"),
         "prefix": entry.get("prefix") or "gk_…",
@@ -55,13 +58,20 @@ def public_entry(entry: dict[str, Any]) -> dict[str, Any]:
         "created_at": entry.get("created_at"),
         "enabled": entry.get("enabled", True),
         "admin": bool(entry.get("admin", False)),
+        # Cumulative totals, not a per-request log - read from key_usage,
+        # which has exactly one row per key regardless of how much traffic
+        # it has ever taken.
+        "total_requests": usage.get("total_requests", 0),
+        "total_tokens": usage.get("total_completion_tokens", 0),
+        "last_used_at": usage.get("last_used_at"),
     }
 
 
 @router.get("")
 def list_keys() -> dict[str, Any]:
     data = load()
-    return {"keys": [public_entry(k) for k in data["keys"]]}
+    usage = db.key_usage_by_name()
+    return {"keys": [public_entry(k, usage.get(k.get("name"))) for k in data["keys"]]}
 
 
 @router.post("")

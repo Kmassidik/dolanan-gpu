@@ -20,7 +20,7 @@ Browser
        ├─ session auth + CSRF
        ├─ SQLite
        ├─ nvidia-smi collector
-       └─ request ingest
+       └─ request ingest -> per-key + per-day totals, bounded debug log
 ```
 
 The UI runs in Docker. The API stays on the host because this Docker install has no NVIDIA container runtime; the collector needs `nvidia-smi` and the GPUs.
@@ -119,14 +119,21 @@ SQLite, WAL mode.
 
 ```text
 gpu_samples     telemetry history, 7-day retention
-requests        gateway request records
-daily_metrics   daily rollups
+requests        recent-request debug log, 7-day retention - NOT the totals
+daily_metrics   daily rollups, written on every ingest, never pruned
+key_usage       per-API-key cumulative totals, written on every ingest, one row per key
 settings        small config values
 users           Argon2id password hashes
 sessions        hashed session tokens + expiry
 login_attempts  login rate limiting
 audit_log       login/logout events
 ```
+
+`requests` used to be the only record of gateway traffic and grew without
+bound (one row forever, per request). It is now a bounded recent-activity log
+only - `key_usage` and `daily_metrics` are the permanent totals, each capped
+at one row per key / per day regardless of request volume. The Keys page
+reads `key_usage` directly; `/api/summary` reads `daily_metrics`.
 
 Backup:
 

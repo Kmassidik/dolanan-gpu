@@ -116,6 +116,12 @@ History is downsampled server-side; it does not return every 2-second sample.
 
 ### GET `/api/summary?days=30`
 
+`requests`, `tokens` and `rate_limited` are read from the permanent `daily_metrics`
+rollup (one row per day, never pruned), not from the raw request log - they stay
+correct no matter how far back the raw log itself has been pruned to. Only
+`avg_ttft_ms`, `avg_decode_tps` and `latest_trace` come from the raw log, since
+those are recent-health numbers rather than totals that need to survive pruning.
+
 ```json
 {
   "days": 30,
@@ -138,6 +144,11 @@ History is downsampled server-side; it does not return every 2-second sample.
 ```
 
 ## Requests
+
+The raw `requests` table is a **bounded, 7-day debug log**, not the place totals
+are read from - see [API keys](#api-keys) and `/api/summary` above for the
+permanent counters. It exists only to back `latest_trace` and the dashboard's
+"recent requests" panel.
 
 ### GET `/api/requests/recent?limit=20`
 
@@ -184,11 +195,29 @@ Content-Type: application/json
 
 Limits: 64 KiB body, validated numeric fields.
 
+Each ingested request updates three things, not one unbounded log:
+
+1. **`key_usage`** - one row per `api_key_name`, incremented in place. This is
+   the permanent total the Keys page reads.
+2. **`daily_metrics`** - one row per day, incremented in place. This is what
+   `/api/summary` reads.
+3. **`requests`** - one bounded row, kept only for the recent-requests debug
+   view, pruned past 7 days on the same cadence as `gpu_samples`.
+
+Nothing here grows without bound from request volume alone; only the number of
+distinct keys and the number of days in the retention window can grow the
+database size.
+
 ## API keys
 
 All routes require a session cookie. Creating and revoking also require `X-CSRF-Token`.
 
 ### GET `/api/keys`
+
+`total_requests`, `total_tokens` and `last_used_at` are cumulative totals from
+`key_usage` - one row per key, never a growing per-request list. They are
+correct for the key's whole lifetime even after old raw request rows have
+been pruned.
 
 ```json
 {
@@ -199,7 +228,10 @@ All routes require a session cookie. Creating and revoking also require `X-CSRF-
       "rpm": 60,
       "created_at": 1793169136,
       "enabled": true,
-      "admin": false
+      "admin": false,
+      "total_requests": 412,
+      "total_tokens": 58230,
+      "last_used_at": 1793169999
     }
   ]
 }
