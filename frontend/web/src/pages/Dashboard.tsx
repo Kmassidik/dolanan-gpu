@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { GpuCard } from "../components/GpuCard";
-import { RequestsTable } from "../components/RequestsTable";
+import { KeyUsageTable } from "../components/KeyUsageTable";
 import { StatCard } from "../components/StatCard";
 import { ThroughputChart } from "../components/ThroughputChart";
 import { api, ApiError } from "../api";
 import { useAuth } from "../auth";
-import type { Gpu, HistorySample, RequestRow, Summary, Telemetry } from "../types";
+import type { Gpu, HistorySample, KeyRow, Summary, Telemetry } from "../types";
 
 const zeroSummary: Summary = {
   requests: 0,
@@ -34,8 +34,9 @@ export function Dashboard() {
   const { user, logout } = useAuth();
   const [gpus, setGpus] = useState<Gpu[]>([]);
   const [history, setHistory] = useState<HistorySample[]>([]);
+  const [chartGpu, setChartGpu] = useState(0);
   const [summary, setSummary] = useState<Summary>(zeroSummary);
-  const [requests, setRequests] = useState<RequestRow[]>([]);
+  const [keys, setKeys] = useState<KeyRow[]>([]);
   const [error, setError] = useState("");
   const [updated, setUpdated] = useState<number | null>(null);
 
@@ -54,10 +55,42 @@ export function Dashboard() {
       }
     }
 
+    async function loadSummary() {
+      try {
+        // Per-key totals (key_usage), not a growing per-request log - the
+        // same numbers the Keys page shows, surfaced here too.
+        const [sum, keyList] = await Promise.all([
+          api<Summary>("/api/summary"),
+          api<{ keys: KeyRow[] }>("/api/keys"),
+        ]);
+        if (!alive) return;
+        setSummary(sum);
+        setKeys(keyList.keys);
+      } catch (err) {
+        signedOut(err);
+      }
+    }
+
+    loadTelemetry();
+    loadSummary();
+    const fast = window.setInterval(loadTelemetry, 3000);
+    const slow = window.setInterval(loadSummary, 15000);
+    return () => {
+      alive = false;
+      window.clearInterval(fast);
+      window.clearInterval(slow);
+    };
+  }, []);
+
+  // Separate effect, keyed on the selected GPU tab, so switching tabs refetches
+  // immediately without restarting the telemetry/summary polling above.
+  useEffect(() => {
+    let alive = true;
+
     async function loadHistory() {
       try {
         const hist = await api<{ samples: HistorySample[] }>(
-          "/api/telemetry/history?minutes=60&gpu=0&points=60",
+          `/api/telemetry/history?minutes=60&gpu=${chartGpu}&points=60`,
         );
         if (alive) setHistory(hist.samples);
       } catch (err) {
@@ -65,34 +98,13 @@ export function Dashboard() {
       }
     }
 
-    async function loadSummary() {
-      try {
-        const [sum, recent] = await Promise.all([
-          api<Summary>("/api/summary"),
-          api<{ requests: RequestRow[] }>("/api/requests/recent?limit=8"),
-        ]);
-        if (!alive) return;
-        setSummary(sum);
-        setRequests(recent.requests);
-      } catch (err) {
-        signedOut(err);
-      }
-    }
-
-    loadTelemetry();
     loadHistory();
-    loadSummary();
-    const fast = window.setInterval(loadTelemetry, 3000);
-    const slow = window.setInterval(() => {
-      loadHistory();
-      loadSummary();
-    }, 15000);
+    const interval = window.setInterval(loadHistory, 15000);
     return () => {
       alive = false;
-      window.clearInterval(fast);
-      window.clearInterval(slow);
+      window.clearInterval(interval);
     };
-  }, []);
+  }, [chartGpu]);
 
   const used = gpus.reduce((sum, gpu) => sum + (gpu.vram_used_mib ?? 0), 0);
   const capacity = gpus.reduce((sum, gpu) => sum + (gpu.vram_total_mib ?? 0), 0);
@@ -162,19 +174,29 @@ export function Dashboard() {
 
           <div className="panel">
             <div className="panel-head">
-              <h2>GPU 0 — last hour</h2>
-              <span className="muted">temperature / utilization</span>
+              <h2>GPU {chartGpu} — last hour</h2>
+              <div className="gpu-tabs">
+                {gpus.map((gpu) => (
+                  <button
+                    key={gpu.gpu_index}
+                    className={`gpu-tab ${gpu.gpu_index === chartGpu ? "active" : ""}`}
+                    onClick={() => setChartGpu(gpu.gpu_index)}
+                  >
+                    GPU {gpu.gpu_index}
+                  </button>
+                ))}
+              </div>
             </div>
-            <ThroughputChart history={history} />
+            <ThroughputChart history={history} gpuIndex={chartGpu} />
           </div>
         </section>
 
         <section className="panel">
           <div className="panel-head">
-            <h2><img className="panel-icon" src="/icons/queue.webp" alt="" /> Latest requests</h2>
-            <span className="muted">gateway → SQLite</span>
+            <h2><img className="panel-icon" src="/icons/queue.webp" alt="" /> API usage</h2>
+            <span className="muted">totals per key, not per request</span>
           </div>
-          <RequestsTable requests={requests} />
+          <KeyUsageTable keys={keys} />
         </section>
       </main>
     </div>

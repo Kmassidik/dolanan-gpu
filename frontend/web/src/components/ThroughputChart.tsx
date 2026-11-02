@@ -9,9 +9,9 @@ import {
 } from "recharts";
 import type { HistorySample } from "../types";
 
-export function ThroughputChart({ history }: { history: HistorySample[] }) {
+export function ThroughputChart({ history, gpuIndex }: { history: HistorySample[]; gpuIndex: number }) {
   const points = history
-    .filter((sample) => sample.gpu_index === 0)
+    .filter((sample) => sample.gpu_index === gpuIndex)
     .map((sample) => ({
       time: new Date(sample.ts * 1000).toLocaleTimeString([], {
         hour: "2-digit",
@@ -42,8 +42,8 @@ export function ThroughputChart({ history }: { history: HistorySample[] }) {
             contentStyle={{ borderRadius: 10, border: "1px solid #dbe3ee", fontSize: 12 }}
             labelStyle={{ color: "#334155" }}
           />
-          <Area type="monotone" dataKey="temp" name="GPU 0 °C" stroke="#10b981" strokeWidth={2} fill="url(#tempFill)" />
-          <Area type="monotone" dataKey="util" name="GPU 0 util %" stroke="#64748b" strokeWidth={1.5} fillOpacity={0} />
+          <Area type="monotone" dataKey="temp" name={`GPU ${gpuIndex} °C`} stroke="#10b981" strokeWidth={2} fill="url(#tempFill)" />
+          <Area type="monotone" dataKey="util" name={`GPU ${gpuIndex} util %`} stroke="#64748b" strokeWidth={1.5} fillOpacity={0} />
         </AreaChart>
       </ResponsiveContainer>
     </div>
