@@ -137,36 +137,52 @@ class Limiter:
             self.queue_depth += 1
             if is_long:
                 self.long_pending += 1
-        try:
-            await asyncio.wait_for(
-                self.sem.acquire(), timeout=float(cfg["queue_timeout_s"])
-            )
-        except asyncio.TimeoutError:
-            async with self.lock:
-                self.pending[key] -= 1
-                self.queue_depth -= 1
-                if is_long:
-                    self.long_pending -= 1
-            self.timeouts += 1
-            raise QueueTimeout from None
-        async with self.lock:
+        def _dequeue() -> None:
+            # Sync on purpose: the cancellation path must never await, or the
+            # queue counters leak and every later request eventually gets 429
+            # "queue full" (second half of the 2026-11-06 incident).
             self.pending[key] -= 1
             self.queue_depth -= 1
             if is_long:
                 self.long_pending -= 1
-            self.inflight[key] += 1
-            self.active += 1
-            if is_long:
-                self.long_active += 1
+
+        acq = asyncio.ensure_future(self.sem.acquire())
+        try:
+            await asyncio.wait_for(
+                asyncio.shield(acq), timeout=float(cfg["queue_timeout_s"])
+            )
+        except asyncio.TimeoutError:
+            acq.cancel()
+            _dequeue()
+            self.timeouts += 1
+            raise QueueTimeout from None
+        except asyncio.CancelledError:
+            # Client vanished while queued. If the semaphore was granted just
+            # before the cancellation, hand it straight back.
+            if acq.done() and not acq.cancelled() and acq.exception() is None:
+                self.sem.release()
+            else:
+                acq.cancel()
+            _dequeue()
+            raise
+        _dequeue()
+        self.inflight[key] += 1
+        self.active += 1
+        if is_long:
+            self.long_active += 1
         self.accepted += 1
         return key, is_long
 
-    async def release(self, key: str, is_long: bool) -> None:
-        async with self.lock:
-            self.inflight[key] -= 1
-            self.active -= 1
-            if is_long:
-                self.long_active -= 1
+    def release(self, key: str, is_long: bool) -> None:
+        # Sync on purpose. This is called from `finally` blocks: if a client
+        # disconnects, the task is cancelled and any `await` here would itself
+        # be cancelled, leaking the semaphore forever (the 2026-11-06 deadlock:
+        # one "test" request stayed inflight for minutes and every later request
+        # waited 60 s and got 504 / ECONNRESET at the client).
+        self.inflight[key] -= 1
+        self.active -= 1
+        if is_long:
+            self.long_active -= 1
         self.sem.release()
 
     def snapshot(self) -> dict[str, Any]:
@@ -330,6 +346,14 @@ async def v1(path: str, request: Request):
         except json.JSONDecodeError:
             raise HTTPException(400, "invalid JSON body") from None
 
+    # R33: llama.cpp in this build stalls on cross-request slot-cache reuse
+    # (find_slot "non-consecutive token position" -> CPU fallback -> 60x slower).
+    # Agents (OMP/OpenCode) resend a diverging prefix every turn, so disable the
+    # prompt cache unless the client explicitly asks for it.
+    if path in ("chat/completions", "completions") and "cache_prompt" not in body:
+        body["cache_prompt"] = False
+        raw = json.dumps(body).encode()
+
     request_id = uuid.uuid4().hex
     is_long = estimate_tokens(body) >= int(config()["long_context_tokens"])
     queued = path != "models"
@@ -400,9 +424,12 @@ async def v1(path: str, request: Request):
                                 if isinstance(item.get("timings"), dict):
                                     meta["timings"] = item["timings"]
                 finally:
-                    await resp.aclose()
                     if admitted:
-                        await LIMITER.release(key, is_long)
+                        LIMITER.release(key, is_long)
+                    try:
+                        await resp.aclose()
+                    except Exception:
+                        pass
                     asyncio.create_task(
                         ingest(
                             request_record(
@@ -464,4 +491,4 @@ async def v1(path: str, request: Request):
         return JSONResponse({"error": "upstream unavailable"}, status_code=502)
     finally:
         if release_needed and admitted:
-            await LIMITER.release(key, is_long)
+            LIMITER.release(key, is_long)

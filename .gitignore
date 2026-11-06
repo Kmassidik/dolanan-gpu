@@ -7,3 +7,6 @@ dist/
 results/
 plans/*.results.json
 plans/*.server.log
+*.bak-*
+models/
+*.qdstrm

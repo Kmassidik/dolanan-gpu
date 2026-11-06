@@ -38,7 +38,7 @@ exec "$binary" \
   "${spec[@]}" \
   -ngl 99 --split-mode layer -fa on \
   --parallel 1 --cache-reuse 256 \
-  --no-mmproj-offload --jinja \
+  --no-mmproj-offload --jinja --metrics \
   --temp 1.0 --top-p 0.95 --top-k 20 \
   --api-key "$LLAMA_API_KEY" \
   -a heretic-qwen36-35b \

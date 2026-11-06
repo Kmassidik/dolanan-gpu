@@ -1,10 +1,43 @@
 # dolanan-gpu
 
-**Measured inference optimization for three consumer GPUs.** Built and benchmarked on 3× RTX 3060 Ti (8GB each) with 125GB host RAM, serving `heretic-qwen36-35b` Q3_K_M through patched llama.cpp engines.
+**Measured inference optimization for three consumer GPUs.** Built and benchmarked on 3× RTX 3060 Ti (8GB each) with 125GB host RAM. **Current deployment (2026-11-06):** `qwen3.8-moe` — Qwen3.8-35B-A3B Distill APEX-I-MiniPlus-V2.1 Abliterated + MTP — behind an API-key gateway. The results below were measured earlier on `heretic-qwen36-35b` Q3_K_M and are kept as history.
 
 No synthetic claims: every number below comes from the included benchmark harness on this machine.
 
 ![Measured decode throughput](assets/performance.svg)
+
+## Current deployment (2026-11-06)
+
+```
+Cloudflare (llm.glicc.id)  ─┐
+                             ├─→ gateway :8081 ─→ llama-server :8084
+Tailscale (tailnet only)   ─┘     systemd            systemd
+```
+
+| Piece | Value |
+|---|---|
+| Model | `Qwen3.8-35B-A3B-Distill.APEX-I-MiniPlus-V2.1-Abliterated.gguf` + Q4_0 MTP draft |
+| Cards | 3 × 8 GB, layer split, `-ts 1,1,0.9` |
+| Context | `-c 256000`, `--parallel 2` → **128k per slot** |
+| Micro-batch | `-ub 128` (512 tok/s at 32, 945 at 64, 1,228 at 128, 2,297 at 256 — but 256 OOMs its compute buffer at 256k) |
+| Cache | `-ctk/-ctv q4_0`, MTP speculation, no `--cache-reuse` |
+| Sampling | temp 0.6, top_p 0.95, top_k 20, min_p 0.05, penalties 0, **DRY 0.8/1.75/2/0** |
+| Gateway | key-gated, `cache_prompt: false`, `max_queued: 3`, cancellation-safe release |
+| Services | `llama-qwen38moe.service`, `glicc-gateway.service` (units in `gateway/`) |
+
+Measured: prefill **1,228 tok/s** at 53.7k (44 s), **226k in ~3 min**; decode ~116 tok/s at
+short context, 28.5 tok/s at 226k; needle found at 226k with zero repetition.
+
+Operational notes:
+- Public `https://llm.glicc.id/v1` has Cloudflare's **125 s proxy read timeout** (Error 524).
+  The tailnet endpoint `https://dalang-z9pe-d8-ws.tailed0f24.ts.net/v1` has no such limit.
+- The prompt cache is forced off at the gateway: this llama.cpp build stalls on
+  cross-request slot reuse (`find_slot: non-consecutive token position` → CPU fallback).
+- The upstream Distill checkpoint has a documented long-generation repetition tendency;
+  DRY + card sampling mitigate it, a Distill V2 is announced.
+
+Files: `run-llama.sh` (launcher), `scripts/ub_ladder.sh` (micro-batch ladder),
+`gateway/app.py` (queue/key gateway), `gateway/*.service` (units).
 
 ## Results
 

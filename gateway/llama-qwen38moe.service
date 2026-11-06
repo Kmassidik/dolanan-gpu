@@ -1,0 +1,17 @@
+[Unit]
+Description=llama-server qwen3.8-moe (glicc endpoint, 256k ctx, all 3 cards)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/Desktop/selfhostllm
+Environment=UB=128
+Environment=PARALLEL=2
+ExecStart=/root/Desktop/gpu-optimized/run-llama.sh
+Restart=always
+RestartSec=10
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
