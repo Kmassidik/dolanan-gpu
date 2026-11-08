@@ -1,13 +1,14 @@
 [Unit]
-Description=llama-server qwen3.8-moe (glicc endpoint, 256k ctx, all 3 cards)
+Description=llama-server Sage-A1.5 (glicc endpoint, 262k ctx, 1 slot, all 3 cards)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 WorkingDirectory=/root/Desktop/selfhostllm
-Environment=UB=128
-Environment=PARALLEL=2
+Environment=UB=512
+Environment=CTX=262144
+Environment=PARALLEL=1
 ExecStart=/root/Desktop/gpu-optimized/run-llama.sh
 Restart=always
 RestartSec=10

@@ -1,12 +1,12 @@
 # dolanan-gpu
 
-**Measured inference optimization for three consumer GPUs.** Built and benchmarked on 3× RTX 3060 Ti (8GB each) with 125GB host RAM. **Current deployment (2026-11-06):** `qwen3.8-moe` — Qwen3.8-35B-A3B Distill APEX-I-MiniPlus-V2.1 Abliterated + MTP — behind an API-key gateway. The results below were measured earlier on `heretic-qwen36-35b` Q3_K_M and are kept as history.
+**Measured inference optimization for three consumer GPUs.** Built and benchmarked on 3× RTX 3060 Ti (8GB each) with 125GB host RAM. **Current deployment (2026-11-08):** `sage-a15` — Sage-A1.5 35B MoE (Heretic abliterated, IQ3_M) on the latest upstream llama.cpp — behind an API-key gateway. The Qwen3.8 MoE remains as rollback. The results below were measured earlier on `heretic-qwen36-35b` Q3_K_M and are kept as history.
 
 No synthetic claims: every number below comes from the included benchmark harness on this machine.
 
 ![Measured decode throughput](assets/performance.svg)
 
-## Current deployment (2026-11-06)
+## Current deployment (2026-11-08)
 
 ```
 Cloudflare (llm.glicc.id)  ─┐
@@ -16,25 +16,25 @@ Tailscale (tailnet only)   ─┘     systemd            systemd
 
 | Piece | Value |
 |---|---|
-| Model | `Qwen3.8-35B-A3B-Distill.APEX-I-MiniPlus-V2.1-Abliterated.gguf` + Q4_0 MTP draft |
+| Model | `Sage-A1.5-Heretic-Abliterated-Uncensored.i1-IQ3_M.gguf` (15.44 GB) |
+| Engine | **latest upstream `engines/llamacpp-latest`** (0.9.0-dev, f7591a6); the old mainline cannot load this quant, the competitor fork stalls on slot reuse |
 | Cards | 3 × 8 GB, layer split, `-ts 1,1,0.9` |
-| Context | `-c 256000`, `--parallel 2` → **128k per slot** |
-| Micro-batch | `-ub 128` (512 tok/s at 32, 945 at 64, 1,228 at 128, 2,297 at 256 — but 256 OOMs its compute buffer at 256k) |
-| Cache | `-ctk/-ctv q4_0`, MTP speculation, no `--cache-reuse` |
-| Sampling | temp 0.6, top_p 0.95, top_k 20, min_p 0.05, penalties 0, **DRY 0.8/1.75/2/0** |
-| Gateway | key-gated, `cache_prompt: false`, `max_queued: 3`, cancellation-safe release |
+| Context | `-c 262144`, `--parallel 1` → **one full 262,144 window** |
+| Micro-batch | `-ub 512` |
+| Cache | `-ctk/-ctv q4_0`, **prompt cache enabled**, no MTP (this quant has none) |
+| Sampling | temp 0.6, top_p 0.95, top_k 20, min_p 0.05, penalties 0, **DRY 0.8/1.75/2/0**; thinking **off by default** |
+| Gateway | key-gated, prompt cache **on** (the new engine has no slot-reuse stall), `max_queued: 3`, cancellation-safe release |
 | Services | `llama-qwen38moe.service`, `glicc-gateway.service` (units in `gateway/`) |
 
-Measured: prefill **1,228 tok/s** at 53.7k (44 s), **226k in ~3 min**; decode ~116 tok/s at
-short context, 28.5 tok/s at 226k; needle found at 226k with zero repetition.
+Measured on this engine (2026-11-08): prefill **~4,748 tok/s** (30k in 6.2 s), decode
+**45 tok/s**, cached turn **0.99 s**; a 194,737-token prompt prefilled at 2,848 tok/s and
+retrieved its needle (TTFB 71 s). VRAM 7,703 / 7,265 / 6,467 MiB, zero slot warnings.
+Vision is currently off (mmproj omitted for stability).
 
 Operational notes:
 - Public `https://llm.glicc.id/v1` has Cloudflare's **125 s proxy read timeout** (Error 524).
   The tailnet endpoint `https://dalang-z9pe-d8-ws.tailed0f24.ts.net/v1` has no such limit.
-- The prompt cache is forced off at the gateway: this llama.cpp build stalls on
-  cross-request slot reuse (`find_slot: non-consecutive token position` → CPU fallback).
-- The upstream Distill checkpoint has a documented long-generation repetition tendency;
-  DRY + card sampling mitigate it, a Distill V2 is announced.
+- Live config is one slot at 262,144. For two concurrent sessions instead, set `PARALLEL=2` with `CTX=327680` (163,840 each).
 
 Files: `run-llama.sh` (launcher), `scripts/ub_ladder.sh` (micro-batch ladder),
 `gateway/app.py` (queue/key gateway), `gateway/*.service` (units).

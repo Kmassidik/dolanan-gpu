@@ -346,14 +346,6 @@ async def v1(path: str, request: Request):
         except json.JSONDecodeError:
             raise HTTPException(400, "invalid JSON body") from None
 
-    # R33: llama.cpp in this build stalls on cross-request slot-cache reuse
-    # (find_slot "non-consecutive token position" -> CPU fallback -> 60x slower).
-    # Agents (OMP/OpenCode) resend a diverging prefix every turn, so disable the
-    # prompt cache unless the client explicitly asks for it.
-    if path in ("chat/completions", "completions") and "cache_prompt" not in body:
-        body["cache_prompt"] = False
-        raw = json.dumps(body).encode()
-
     request_id = uuid.uuid4().hex
     is_long = estimate_tokens(body) >= int(config()["long_context_tokens"])
     queued = path != "models"

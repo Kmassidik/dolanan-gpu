@@ -21,8 +21,10 @@ services:
     environment:
       FRONTEND_DB: /app/data/gliccops.db
       FRONTEND_TOKEN_FILE: /app/data/ingest.token
+      GATEWAY_KEYS_FILE: /app/gateway/keys.json
     volumes:
       - ./data:/app/data
+      - ../gateway:/app/gateway
     read_only: true
     tmpfs:
       - /tmp:size=16m
